@@ -1,0 +1,374 @@
+import streamlit as st
+import feedparser
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import time
+import urllib3
+import re
+from datetime import datetime, timedelta
+from dateutil import parser as date_parser
+
+# Mematikan peringatan SSL
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+}
+
+# --- KATA KUNCI SENTIMEN (BAHASA INDONESIA) ---
+KATA_POSITIF = [
+    "laba", "untung", "naik", "melonjak", "meroket", "tumbuh", "ekspansi", 
+    "dividen", "deviden", "surplus", "bullish", "rekor", "positif", "penguatan", 
+    "terangkat", "melejit", "dividen yield", "buyback", "prospek cerah"
+]
+
+KATA_NEGATIF = [
+    "rugi", "kerugian", "anjlok", "turun", "merosot", "terperosok", "gugatan", 
+    "sanksi", "denda", "bearish", "negatif", "pelemahan", "tertekan", "kasus", 
+    "pailit", "bangkrut", "korupsi", "sengketa", "gagal bayar", "pemecatan", "phk"
+]
+
+# --- FUNGSI ANALISIS SENTIMEN ---
+def analisa_sentimen(teks):
+    teks_lower = teks.lower()
+    skor_positif = sum(1 for kata in KATA_POSITIF if kata in teks_lower)
+    skor_negatif = sum(1 for kata in KATA_NEGATIF if kata in teks_lower)
+    
+    if skor_positif > skor_negatif:
+        return "POSITIF 🟢"
+    elif skor_negatif > skor_positif:
+        return "NEGATIF 🔴"
+    else:
+        return "NETRAL ⚪"
+
+# --- FUNGSI AMBIL RSS ---
+def dapatkan_feed_rss(url_rss):
+    try:
+        response = requests.get(url_rss, headers=HEADERS, timeout=12, verify=False)
+        if response.status_code == 200:
+            return feedparser.parse(response.content)
+    except Exception:
+        pass
+    return feedparser.parse(url_rss)
+
+# --- FUNGSI PARSING TANGGAL & FILTER ---
+def apakah_dalam_rentang(tanggal_str, hari_maksimal):
+    if not tanggal_str or tanggal_str == 'N/A':
+        return True
+    try:
+        dt_berita = date_parser.parse(tanggal_str)
+        if dt_berita.tzinfo is not None:
+            dt_berita = dt_berita.replace(tzinfo=None)
+            
+        batas_waktu = datetime.now() - timedelta(days=hari_maksimal)
+        return dt_berita >= batas_waktu
+    except Exception:
+        return True
+
+# --- FUNGSI EKSTRAKSI URL ASLI (JIKA VIA GOOGLE NEWS) ---
+def dapatkan_url_asli(url_target):
+    if "news.google.com" in url_target:
+        try:
+            resp = requests.get(url_target, headers=HEADERS, timeout=10, verify=False, allow_redirects=True)
+            return resp.url
+        except Exception:
+            return url_target
+    return url_target
+
+# --- FUNGSI SCRAPING KONTEN UNIVERSAL ---
+def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
+    try:
+        url_asli = dapatkan_url_asli(url_input)
+        link_target = url_asli + "?page=all" if butuh_page_all else url_asli
+        
+        response = requests.get(link_target, headers=HEADERS, timeout=12, verify=False, allow_redirects=True)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            artikel_body = soup.find(tag_html, class_=class_html)
+            
+            if not artikel_body:
+                url_check = response.url.lower()
+                if "idnfinancials.com" in url_check:
+                    artikel_body = (
+                        soup.find('article', class_='article-content') or
+                        soup.find('div', class_='article-body') or
+                        soup.find('div', class_='content-detail') or
+                        soup.find('article')
+                    )
+                elif "cnbcindonesia.com" in url_check:
+                    artikel_body = (
+                        soup.find('div', class_='detail_text') or
+                        soup.find('div', class_='detail-text') or
+                        soup.find('article')
+                    )
+                elif "investor.id" in url_check:
+                    artikel_body = (
+                        soup.find('div', class_='body-content') or
+                        soup.find('div', class_='content-detail') or
+                        soup.find('div', class_='article-body') or
+                        soup.find('div', class_='col-12 col-lg-8') or
+                        soup.find('article')
+                    )
+
+            if artikel_body:
+                paragraf = artikel_body.find_all('p')
+                teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 20]
+                if teks_paragraf:
+                    return "\n\n".join(teks_paragraf)
+            
+            semua_p = soup.find_all('p')
+            teks_universal = []
+            for p in semua_p:
+                txt = p.text.strip()
+                if len(txt) > 30 and not re.search(r'(cookie|privacy|rights reserved|baca juga|baca selengkapnya)', txt, re.IGNORECASE):
+                    teks_universal.append(txt)
+            
+            if teks_universal:
+                return "\n\n".join(teks_universal)
+                    
+            return "Konten tidak dapat diekstrak (Struktur HTML dilindungi/berubah)."
+        return f"Gagal akses. Status: {response.status_code}"
+    except Exception as e:
+        return f"Error: {e}"
+
+# --- KAMUS ATURAN PORTAL & KANAL BERITA ---
+aturan_portal = {
+    "IDNFinancials": {
+        "rss": "https://news.google.com/rss/search?q=site:idnfinancials.com&hl=id&gl=ID&ceid=ID:id", 
+        "tag": "article", "class": "article-content", "butuh_page_all": False
+    },
+    "CNBC Indonesia (Market)": {
+        "rss": "https://www.cnbcindonesia.com/market/rss", 
+        "tag": "div", "class": "detail_text", "butuh_page_all": False
+    },
+    "CNBC Indonesia (MyMoney)": {
+        "rss": "https://www.cnbcindonesia.com/mymoney/rss", 
+        "tag": "div", "class": "detail_text", "butuh_page_all": False
+    },
+    "CNBC Indonesia (News)": {
+        "rss": "https://www.cnbcindonesia.com/news/rss", 
+        "tag": "div", "class": "detail_text", "butuh_page_all": False
+    },
+    "Investor.id (Market)": {
+        "rss": "https://investor.id/rss/market", 
+        "tag": "div", "class": "body-content", "butuh_page_all": False
+    },
+    "Investor.id (Finance)": {
+        "rss": "https://investor.id/rss/finance", 
+        "tag": "div", "class": "body-content", "butuh_page_all": False
+    },
+    "Investor.id (Macroeconomy)": {
+        "rss": "https://investor.id/rss/macroeconomy", 
+        "tag": "div", "class": "body-content", "butuh_page_all": False
+    },
+    "Investor.id (Investory)": {
+        "rss": "https://investor.id/rss/investory", 
+        "tag": "div", "class": "body-content", "butuh_page_all": False
+    },
+    "Kontan Investasi": {
+        "rss": "https://investasi.kontan.co.id/rss", 
+        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
+    },
+    "Katadata": {
+        "rss": "https://katadata.co.id/rss", 
+        "tag": "div", "class": "detail-body", "butuh_page_all": False
+    },
+    "Bloomberg Technoz": {
+        "rss": "https://www.bloombergtechnoz.com/rss", 
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Tempo Bisnis": {
+        "rss": "https://rss.tempo.co/bisnis", 
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False
+    },
+    "ANTARA Ekonomi": {
+        "rss": "https://www.antaranews.com/rss/ekonomi-bisnis.xml", 
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
+    },
+    "IDX Channel": {
+        "rss": "https://www.idxchannel.com/rss", 
+        "tag": "div", "class": "detail-text", "butuh_page_all": False
+    }
+}
+
+kata_kunci_portofolio = [
+    "arna", "bris", "smsm", "sido", "ptba", "aces", 
+    "etf r-lq45x", "emas", "reksadana majoris sukuk bunga syariah",
+    "bei", "ojk", "bank indonesia",
+    "kebijakan pemerintah", "sentimen pasar", "market", "arah suku bunga", 
+    "yield obligasi", "harga batu bara", "pasar surat utang", "ihsg"
+]
+
+# ==========================================
+# STREAMLIT UI & SIDEBAR WITH SELECT ALL
+# ==========================================
+st.set_page_config(page_title="Radar Investasi Multi", layout="wide")
+
+st.sidebar.title("⚙️ Pengaturan Radar")
+
+semua_portal_keys = list(aturan_portal.keys())
+pilih_semua = st.sidebar.checkbox("✅ Pilih Semua Portal / Kanal", value=False)
+
+if pilih_semua:
+    default_terpilih = semua_portal_keys
+else:
+    default_terpilih = [
+        "IDNFinancials",
+        "CNBC Indonesia (Market)", 
+        "CNBC Indonesia (News)",
+        "Investor.id (Market)",
+        "Kontan Investasi"
+    ]
+
+portal_terpilih = st.sidebar.multiselect(
+    "Pilih Portal/Kanal Berita (Bisa disesuaikan):",
+    options=semua_portal_keys,
+    default=default_terpilih
+)
+
+pilihan_rentang = st.sidebar.selectbox(
+    "📅 Rentang Waktu Berita:",
+    options=[
+        "24 Jam Terakhir (1 Hari)",
+        "3 Hari Terakhir",
+        "7 Hari Terakhir",
+        "Semua Berita (Tanpa Batas)"
+    ],
+    index=2
+)
+
+map_hari = {
+    "24 Jam Terakhir (1 Hari)": 1,
+    "3 Hari Terakhir": 3,
+    "7 Hari Terakhir": 7,
+    "Semua Berita (Tanpa Batas)": 3650
+}
+hari_filter = map_hari[pilihan_rentang]
+
+target_jumlah = st.sidebar.number_input(
+    "Maksimal berita per portal:", 
+    min_value=1, max_value=50, value=10
+)
+
+st.sidebar.markdown("---")
+st.sidebar.info("Aplikasi lokal berjalan tanpa batasan timeout server awan.")
+
+st.title("📈 Radar Berita Portofolio (Mode Multi-Portal)")
+st.caption("Target Pemantauan Emiten, Aset, Regulasi & Sentimen Pasar:")
+st.code(", ".join([k.upper() for k in kata_kunci_portofolio]))
+
+if st.button("Mulai Radar Multi-Portal!", type="primary"):
+    
+    if len(portal_terpilih) == 0:
+        st.warning("⚠️ Silakan pilih minimal satu portal/kanal berita di sidebar terlebih dahulu.")
+    else:
+        kumpulan_data_global = []
+        status_teks = st.empty()
+        progress_bar = st.progress(0)
+        total_portal = len(portal_terpilih)
+        
+        for idx, nama_portal in enumerate(portal_terpilih):
+            status_teks.info(f"🔄 Sedang memindai: **{nama_portal}** (Kanal ke-{idx+1} dari {total_portal})")
+            
+            aturan = aturan_portal[nama_portal]
+            feed = dapatkan_feed_rss(aturan["rss"])
+            
+            if feed and hasattr(feed, 'entries') and len(feed.entries) > 0:
+                jumlah_didapat = 0 
+                for entry in feed.entries:
+                    judul = entry.get('title', 'N/A')
+                    link = entry.get('link', 'N/A')
+                    tanggal = entry.get('published', 'N/A')
+                    
+                    if not apakah_dalam_rentang(tanggal, hari_filter):
+                        continue
+                    
+                    judul_lower = judul.lower()
+                    cocok = any(kunci in judul_lower for kunci in kata_kunci_portofolio)
+                    
+                    if not cocok:
+                        continue 
+                    
+                    isi = ambil_isi_berita(link, aturan["tag"], aturan["class"], aturan["butuh_page_all"])
+                    
+                    # HITUNG ANALISIS SENTIMEN (Judul + Isi Berita)
+                    sentimen_label = analisa_sentimen(judul + " " + isi)
+                    
+                    kumpulan_data_global.append({
+                        "Sumber": nama_portal,
+                        "Trigger/Emiten": next((k.upper() for k in kata_kunci_portofolio if k in judul_lower), "UMUM"),
+                        "Sentimen": sentimen_label,
+                        "Judul": judul,
+                        "Tanggal": tanggal,
+                        "Link": link,
+                        "Isi Berita": isi
+                    })
+                    
+                    jumlah_didapat += 1
+                    time.sleep(1) 
+                    
+                    if jumlah_didapat >= target_jumlah:
+                        break
+            else:
+                st.error(f"Gagal membaca RSS dari {nama_portal}.")
+                
+            progress_bar.progress((idx + 1) / total_portal)
+        
+        status_teks.empty()
+        
+        if len(kumpulan_data_global) > 0:
+            st.success(f"Radar selesai! Menemukan total {len(kumpulan_data_global)} berita relevan ({pilihan_rentang}) dari {total_portal} portal/kanal.")
+            df = pd.DataFrame(kumpulan_data_global)
+            
+            # ==========================================
+            # DASHBOARD VISUAL + SENTIMEN
+            # ==========================================
+            st.markdown("### 📊 Dashboard Ringkasan Berita & Sentimen")
+            
+            # 1. Metric Cards
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Berita Ditemukan", f"{len(df)} Artikel")
+            m2.metric("Sentimen Positif", f"{len(df[df['Sentimen'] == 'POSITIF 🟢'])} Berita")
+            m3.metric("Sentimen Negatif", f"{len(df[df['Sentimen'] == 'NEGATIF 🔴'])} Berita")
+            m4.metric("Emiten Terpopuler", df['Trigger/Emiten'].mode()[0] if not df.empty else "-")
+            
+            st.markdown("---")
+            
+            # 2. Grafik Distribusi Berita & Sentimen
+            col_chart1, col_chart2 = st.columns(2)
+            
+            with col_chart1:
+                st.subheader("🔥 Top Trigger / Emiten")
+                counts_emiten = df['Trigger/Emiten'].value_counts()
+                st.bar_chart(counts_emiten)
+                
+            with col_chart2:
+                st.subheader("🎭 Distribusi Sentimen Pasar")
+                counts_sentimen = df['Sentimen'].value_counts()
+                st.bar_chart(counts_sentimen)
+                
+            st.markdown("---")
+            
+            # ==========================================
+            # TABEL DATA UTAMA & FITUR UNDUH CSV
+            # ==========================================
+            st.markdown("### 📋 Detail Data Berita")
+            st.dataframe(df, use_container_width=True)
+            
+            # Filter khusus CSV: Hanya 3 kolom utama (Judul, Tanggal, Isi Berita)
+            df_csv = df[['Judul', 'Tanggal', 'Isi Berita']]
+            csv_data = df_csv.to_csv(index=False).encode('utf-8')
+            
+            st.download_button(
+                label="📥 Unduh CSV Ringkas (Hanya Judul, Tanggal & Isi)",
+                data=csv_data,
+                file_name='laporan_berita_ringkas.csv',
+                mime='text/csv',
+            )
+        else:
+            st.warning(f"Belum ada berita yang memuat kata kuncimu dalam rentang waktu **{pilihan_rentang}** saat ini.")

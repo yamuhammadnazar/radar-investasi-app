@@ -1,0 +1,9 @@
+streamlit
+feedparser
+requests
+beautifulsoup4
+pandas
+urllib3
+python-dateutil
+wordcloud
+matplotlib
