@@ -335,6 +335,38 @@ def dapatkan_url_asli(url_target):
             return url_target
     return url_target
 
+# --- FUNGSI KESEHATAN PORTAL ---
+def cek_kesehatan_semua_portal(portal_list, aturan_dict):
+    laporan_kesehatan = []
+    for nama_portal in portal_list:
+        url_rss = aturan_dict[nama_portal]["rss"]
+        t0 = time.time()
+        try:
+            resp = requests.get(url_rss, headers=HEADERS, timeout=6, verify=False)
+            latensi = round((time.time() - t0) * 1000, 0)
+            
+            if resp.status_code == 200:
+                feed = feedparser.parse(resp.content)
+                if hasattr(feed, 'entries') and len(feed.entries) > 0:
+                    status = "🟢 Baik (Normal)"
+                else:
+                    status = "🟡 Kosong (Tanpa Entri)"
+            else:
+                status = f"🔴 Error (HTTP {resp.status_code})"
+        except requests.exceptions.Timeout:
+            status = "⏳ Timeout (Lambat/Diblokir)"
+            latensi = 6000
+        except Exception as e:
+            status = "❌ Bermasalah"
+            latensi = 0
+            
+        laporan_kesehatan.append({
+            "Portal / Kanal": nama_portal,
+            "Status": status,
+            "Latensi (ms)": f"{latensi} ms"
+        })
+    return pd.DataFrame(laporan_kesehatan)
+
 # --- FUNGSI SCRAPING KONTEN & DETEKSI PAYWALL ---
 def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
     try:
@@ -385,7 +417,7 @@ def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
     except Exception as e:
         return f"Error: {e}", "❌ Error"
 
-# --- KAMUS ATURAN PORTAL BERITA (Investor.id dialihkan ke Google News RSS untuk kestabilan) ---
+# --- KAMUS ATURAN PORTAL BERITA (Stabil dengan Google News RSS) ---
 aturan_portal = {
     "IDNFinancials": {
         "rss": "https://news.google.com/rss/search?q=site:idnfinancials.com&hl=id&gl=ID&ceid=ID:id", 
@@ -420,8 +452,8 @@ aturan_portal = {
         "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Kontan Investasi": {
-    "rss": "https://news.google.com/rss/search?q=site:investasi.kontan.co.id&hl=id&gl=ID&ceid=ID:id", 
-    "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
+        "rss": "https://news.google.com/rss/search?q=site:investasi.kontan.co.id&hl=id&gl=ID&ceid=ID:id", 
+        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
     },
     "Katadata": {
         "rss": "https://katadata.co.id/rss", 
@@ -448,8 +480,8 @@ aturan_portal = {
         "tag": "div", "class": "detail-text", "butuh_page_all": False
     },
     "Detik Finance": {
-    "rss": "https://news.google.com/rss/search?q=site:finance.detik.com&hl=id&gl=ID&ceid=ID:id", 
-    "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+        "rss": "https://news.google.com/rss/search?q=site:finance.detik.com&hl=id&gl=ID&ceid=ID:id", 
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
     },
     "Detik News": {
         "rss": "https://news.google.com/rss/search?q=site:news.detik.com&hl=id&gl=ID&ceid=ID:id", 
@@ -590,6 +622,16 @@ with st.expander("🔍 Target Pemantauan Portofolio Aktif", expanded=False):
         st.markdown(badges_makro, unsafe_allow_html=True)
         if len(makro_kw) > 10:
             st.caption(f"+{len(makro_kw)-10} kata kunci lainnya")
+
+st.markdown("---")
+
+# --- PANEL PEMANTAU KESEHATAN PORTAL (HEALTH CHECK) ---
+with st.expander("🏥 Dashboard Kesehatan & Status Portal (Health Check)", expanded=False):
+    st.caption("Memeriksa status koneksi, latensi, dan potensi error/timeout pada portal yang dipilih:")
+    if st.button("🔍 Jalankan Cek Kesehatan Portal Sekarang", use_container_width=True):
+        with st.spinner("Sedang memeriksa koneksi server portal..."):
+            df_sehat = cek_kesehatan_semua_portal(portal_terpilih, aturan_portal)
+            st.dataframe(df_sehat, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
@@ -1176,28 +1218,29 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
             st.markdown("---")
 
             # ==========================================
-            # LAPORAN RINGKAS SIAP KIRIM
+            # LAPORAN RINGKAS SIAP KIRIM (DIPERBARUI LEBIH RINGKAS & LINK PENDEK)
             # ==========================================
             st.markdown("### 📝 Ringkasan Teks Siap Kirim (Format WhatsApp / Catatan)")
             st.caption("Salin teks di bawah ini untuk dibagikan ke grup analisis atau pesan pribadi:")
 
             waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
-            teks_laporan = f"📌 *RADAR BERITA PORTOFOLIO & PASAR MODAL*\n"
-            teks_laporan += f"📅 Update: {waktu_sekarang} ({pilihan_rentang})\n"
-            teks_laporan += f"⏱️ Durasi Pemindaian: {duration} detik\n"
-            teks_laporan += f"🎯 Indeks Sentimen: {skor_indeks}% ({label_indeks})\n"
-            teks_laporan += f"📊 Total Berita Tampil: {len(df_tampil)} Artikel\n"
+            teks_laporan = f"📌 *RADAR BERITA PORTOFOLIO*\n"
+            teks_laporan += f"📅 {waktu_sekarang} | 🎯 Indeks: {skor_indeks}%\n"
+            teks_laporan += f"📊 Total Berita: {len(df_tampil)} Artikel\n"
             teks_laporan += "----------------------------------------\n\n"
 
             for i, row in df_tampil.reset_index(drop=True).iterrows():
                 judul_clean = re.sub(r'\s+', ' ', row['Judul']).strip()
                 ringkasan_clean = re.sub(r'\s+', ' ', row['Ringkasan Berita']).strip()
                 
-                teks_laporan += f"{i+1}. [{row['Trigger/Emiten']}] [{row['Kategori Aset']}] {row['Sentimen']} | {row['Status Bursa']}\n"
-                teks_laporan += f"   📰 *{judul_clean}*\n"
-                teks_laporan += f"   ⏱️ Tanggal: {row['Tanggal']}\n"
-                teks_laporan += f"   💡 {ringkasan_clean}\n"
-                teks_laporan += f"   🔗 Link: {row['Link']}\n\n"
+                link_asli = row['Link']
+                domain_match = re.search(r'https?://(?:www\.)?([^/]+)', link_asli)
+                domain_pendek = domain_match.group(1) if domain_match else "Link Berita"
+                
+                teks_laporan += f"{i+1}. *{row['Trigger/Emiten']}* ({row['Sentimen']})\n"
+                teks_laporan += f"   📰 {judul_clean}\n"
+                teks_laporan += f"   💡 _{ringkasan_clean}_\n"
+                teks_laporan += f"   🔗 [Baca via {domain_pendek}]({link_asli})\n\n"
 
             st.text_area("Format Teks Ringkasan:", value=teks_laporan, height=300)
         else:
