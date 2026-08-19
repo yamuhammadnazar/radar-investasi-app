@@ -420,8 +420,8 @@ aturan_portal = {
         "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Kontan Investasi": {
-        "rss": "https://investasi.kontan.co.id/rss", 
-        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
+    "rss": "https://news.google.com/rss/search?q=site:investasi.kontan.co.id&hl=id&gl=ID&ceid=ID:id", 
+    "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
     },
     "Katadata": {
         "rss": "https://katadata.co.id/rss", 
