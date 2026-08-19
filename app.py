@@ -448,11 +448,11 @@ aturan_portal = {
         "tag": "div", "class": "detail-text", "butuh_page_all": False
     },
     "Detik Finance": {
-        "rss": "https://finance.detik.com/rss", 
-        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+    "rss": "https://news.google.com/rss/search?q=site:finance.detik.com&hl=id&gl=ID&ceid=ID:id", 
+    "tag": "div", "class": "detail__body-text", "butuh_page_all": True
     },
     "Detik News": {
-        "rss": "https://news.detik.com/rss", 
+        "rss": "https://news.google.com/rss/search?q=site:news.detik.com&hl=id&gl=ID&ceid=ID:id", 
         "tag": "div", "class": "detail__body-text", "butuh_page_all": True
     }
 }
