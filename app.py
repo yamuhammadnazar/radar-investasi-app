@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
 }
@@ -360,12 +360,7 @@ def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
                 elif "cnbcindonesia.com" in url_check:
                     artikel_body = soup.find('div', class_='detail_text') or soup.find('div', class_='detail-text') or soup.find('article')
                 elif "investor.id" in url_check:
-                    artikel_body = (
-                        soup.find('div', class_='body-content') or 
-                        soup.find('div', class_='article-body') or 
-                        soup.find('div', class_='detail-content') or 
-                        soup.find('article')
-                    )
+                    artikel_body = soup.find('div', class_='body-content') or soup.find('div', class_='article-body') or soup.find('div', class_='detail-content') or soup.find('article')
                 elif "detik.com" in url_check:
                     artikel_body = soup.find('div', class_='detail__body-text') or soup.find('div', class_='itp_bodyreader') or soup.find('article')
                     
@@ -390,7 +385,7 @@ def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
     except Exception as e:
         return f"Error: {e}", "❌ Error"
 
-# --- KAMUS ATURAN PORTAL BERITA ---
+# --- KAMUS ATURAN PORTAL BERITA (Investor.id dialihkan ke Google News RSS untuk kestabilan) ---
 aturan_portal = {
     "IDNFinancials": {
         "rss": "https://news.google.com/rss/search?q=site:idnfinancials.com&hl=id&gl=ID&ceid=ID:id", 
@@ -408,20 +403,20 @@ aturan_portal = {
         "rss": "https://www.cnbcindonesia.com/news/rss", 
         "tag": "div", "class": "detail_text", "butuh_page_all": False
     },
-"Investor.id (Market)": {
-        "rss": "https://investor.id/rss/market", 
+    "Investor.id (Market)": {
+        "rss": "https://news.google.com/rss/search?q=site:investor.id+market&hl=id&gl=ID&ceid=ID:id", 
         "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Investor.id (Finance)": {
-        "rss": "https://investor.id/rss/finance", 
+        "rss": "https://news.google.com/rss/search?q=site:investor.id+finance&hl=id&gl=ID&ceid=ID:id", 
         "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Investor.id (Macroeconomy)": {
-        "rss": "https://investor.id/rss/macroeconomy", 
+        "rss": "https://news.google.com/rss/search?q=site:investor.id+macroeconomy&hl=id&gl=ID&ceid=ID:id", 
         "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Investor.id (Investory)": {
-        "rss": "https://investor.id/rss/investory", 
+        "rss": "https://news.google.com/rss/search?q=site:investor.id+investory&hl=id&gl=ID&ceid=ID:id", 
         "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Kontan Investasi": {
@@ -805,7 +800,7 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
             st.markdown("<br>", unsafe_allow_html=True)
 
             # ==========================================
-            # ANALISIS SUMBER MEDIA & DISTRIBUSI PORTAL (IDE 1 & 2)
+            # ANALISIS SUMBER MEDIA & DISTRIBUSI PORTAL
             # ==========================================
             st.subheader("📰 Analisis Sumber Portal Berita")
             st.caption("Menganalisis dominasi media (Share of Voice) dan kecenderungan sentimen (Media Bias) dari portal yang dipindai.")
@@ -845,7 +840,7 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
             st.markdown("<br>", unsafe_allow_html=True)
 
             # ==========================================
-            # LEADERBOARD PORTAL & ECHO CHAMBER ALERT (IDE 3 & 4)
+            # LEADERBOARD PORTAL & ECHO CHAMBER ALERT
             # ==========================================
             col_lead, col_alert = st.columns([1.5, 1.5])
             
@@ -897,11 +892,10 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
             col_v1, col_v2 = st.columns(2)
             
             with col_v1:
-                # 1. News Velocity Index (Kecepatan & Volume per Jam)
                 df_valid_time = df[df['dt_sort'] != datetime.min]
                 if not df_valid_time.empty:
                     rentang_jam_aktual = (datetime.now() - df_valid_time['dt_sort'].min()).total_seconds() / 3600
-                    rentang_jam_aktual = max(rentang_jam_aktual, 1) # Minimal 1 jam agar tidak division by zero
+                    rentang_jam_aktual = max(rentang_jam_aktual, 1)
                     velocity = round(len(df) / rentang_jam_aktual, 1)
                 else:
                     velocity = 0.0
@@ -916,7 +910,6 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
                 st.metric("⚡ Indeks Kecepatan Berita (Velocity)", f"{velocity} Berita/Jam", status_velocity)
                 
             with col_v2:
-                # 2. Portfolio Risk Meter (Skor Risiko Berdasarkan Sentimen Negatif)
                 total_berita_all = len(df)
                 if total_berita_all > 0:
                     persen_negatif = round((n_neg / total_berita_all) * 100, 1)
@@ -988,13 +981,12 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
             st.markdown("---")
 
             # ==========================================
-            # TAMBAHAN: RASIO SENTIMEN, EMITEN BERISIK & SECTOR HOTSPOT
+            # RASIO SENTIMEN, EMITEN BERISIK & SECTOR HOTSPOT
             # ==========================================
             st.markdown("<br>", unsafe_allow_html=True)
             col_extra1, col_extra2, col_extra3 = st.columns(3)
             
             with col_extra1:
-                # 1. Rasio Dominasi Sentimen (Bullish vs Bearish Ratio)
                 if n_neg > 0:
                     rasio_val = round(n_pos / n_neg, 1)
                     rasio_str = f"{rasio_val} : 1"
@@ -1009,12 +1001,10 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
                 st.metric("⚖️ Rasio Sentimen (Positif : Negatif)", rasio_str, rasio_desc)
                 
             with col_extra2:
-                # 2. Emiten Paling "Berisik" (Most Volatile Mention)
                 df_emiten_saja = df[df['Trigger/Emiten'] != 'UMUM']
                 if not df_emiten_saja.empty:
                     top_emiten = df_emiten_saja['Trigger/Emiten'].value_counts().idxmax()
                     jumlah_top = df_emiten_saja['Trigger/Emiten'].value_counts().max()
-                    # Sentimen dominan pada emiten tersebut
                     sub_emiten_df = df_emiten_saja[df_emiten_saja['Trigger/Emiten'] == top_emiten]
                     sentimen_top = sub_emiten_df['Sentimen'].mode()[0] if not sub_emiten_df['Sentimen'].mode().empty else "NETRAL"
                     
@@ -1027,12 +1017,10 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
                 st.metric("🚨 Emiten Paling 'Berisik'", emiten_display, emiten_status)
                 
             with col_extra3:
-                # 3. Indeks Kategori Terpanas (Sector Hotspot)
                 if not df['Kategori Aset'].empty:
                     top_kategori = df['Kategori Aset'].value_counts().idxmax()
                     jumlah_kat = df['Kategori Aset'].value_counts().max()
                     
-                    # Mapping nama kategori agar lebih rapi dibaca
                     label_kat_map = {
                         "SAHAM": "📈 Saham Emiten",
                         "REKSADANA_ETF": "📊 Reksadana & ETF",
