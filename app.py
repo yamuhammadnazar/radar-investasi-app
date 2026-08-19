@@ -360,7 +360,12 @@ def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
                 elif "cnbcindonesia.com" in url_check:
                     artikel_body = soup.find('div', class_='detail_text') or soup.find('div', class_='detail-text') or soup.find('article')
                 elif "investor.id" in url_check:
-                    artikel_body = soup.find('div', class_='body-content') or soup.find('div', class_='article-body') or soup.find('article')
+                    artikel_body = (
+                        soup.find('div', class_='body-content') or 
+                        soup.find('div', class_='article-body') or 
+                        soup.find('div', class_='detail-content') or 
+                        soup.find('article')
+                    )
                 elif "detik.com" in url_check:
                     artikel_body = soup.find('div', class_='detail__body-text') or soup.find('div', class_='itp_bodyreader') or soup.find('article')
                     
@@ -403,21 +408,21 @@ aturan_portal = {
         "rss": "https://www.cnbcindonesia.com/news/rss", 
         "tag": "div", "class": "detail_text", "butuh_page_all": False
     },
-    "Investor.id (Market)": {
+"Investor.id (Market)": {
         "rss": "https://investor.id/rss/market", 
-        "tag": "div", "class": "body-content", "butuh_page_all": False
+        "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Investor.id (Finance)": {
         "rss": "https://investor.id/rss/finance", 
-        "tag": "div", "class": "body-content", "butuh_page_all": False
+        "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Investor.id (Macroeconomy)": {
         "rss": "https://investor.id/rss/macroeconomy", 
-        "tag": "div", "class": "body-content", "butuh_page_all": False
+        "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Investor.id (Investory)": {
         "rss": "https://investor.id/rss/investory", 
-        "tag": "div", "class": "body-content", "butuh_page_all": False
+        "tag": "article", "class": "detail-article", "butuh_page_all": False
     },
     "Kontan Investasi": {
         "rss": "https://investasi.kontan.co.id/rss", 
