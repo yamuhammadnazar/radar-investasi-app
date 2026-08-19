@@ -1146,103 +1146,111 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
             df_display = df.drop(columns=['dt_sort'])
 
             # ==========================================
-            # TAB VIEW TERPISAH PER KATEGORI ASET
+            # TAB VIEW TERPISAH PER KATEGORI ASET (DIBUNGKUS EXPANDER)
             # ==========================================
-            st.markdown("### 📋 Detail Data Berita per Kategori Aset")
-            
-            col_fltr1, col_fltr2 = st.columns([1, 2])
-            with col_fltr1:
-                hanya_negatif = st.checkbox("⚠️ Tampilkan Hanya Berita Negatif (Fokus Risiko)", value=False)
+            with st.expander("### 📋 Detail Data Berita per Kategori Aset", expanded=True):
+                col_fltr1, col_fltr2 = st.columns([1, 2])
+                with col_fltr1:
+                    hanya_negatif = st.checkbox("⚠️ Tampilkan Hanya Berita Negatif (Fokus Risiko)", value=False)
 
-            df_tampil = df_display[df_display['Sentimen'] == 'NEGATIF 🔴'] if hanya_negatif else df_display
+                df_tampil = df_display[df_display['Sentimen'] == 'NEGATIF 🔴'] if hanya_negatif else df_display
 
-            if hanya_negatif and df_tampil.empty:
-                st.info("🎉 Aman! Tidak ada berita bersentimen negatif yang ditemukan saat ini.")
+                if hanya_negatif and df_tampil.empty:
+                    st.info("🎉 Aman! Tidak ada berita bersentimen negatif yang ditemukan saat ini.")
 
-            def tampilkan_konten_tab(df_sub):
-                if df_sub.empty:
-                    st.info("Tidak ada berita yang sesuai dengan kriteria kategori ini.")
-                    return
+                def tampilkan_konten_tab(df_sub):
+                    if df_sub.empty:
+                        st.info("Tidak ada berita yang sesuai dengan kriteria kategori ini.")
+                        return
+                    
+                    for _, r in df_sub.iterrows():
+                        with st.container():
+                            badge_s = render_badge_sentimen(r['Sentimen'])
+                            badge_b = render_badge_bursa(r['Status Bursa'])
+                            
+                            st.markdown(
+                                f"**[{r['Trigger/Emiten']}]** &nbsp; {badge_s} &nbsp; {badge_b} &nbsp; "
+                                f"<small style='color: gray;'>📰 {r['Sumber']} | ⏱️ {r['Tanggal']}</small>", 
+                                unsafe_allow_html=True
+                            )
+                            st.markdown(f"#### [{r['Judul']}]({r['Link']})")
+                            st.write(f"💡 **Ringkasan:** {r['Ringkasan Berita']}")
+                            
+                            with st.expander("📄 Baca Isi Berita Lengkap"):
+                                st.write(r['Isi Berita'])
+                            st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+
+                tab_semua, tab_saham, tab_reksa_etf, tab_emas, tab_makro = st.tabs([
+                    "🌐 Semua Berita", 
+                    "📈 Saham Emiten", 
+                    "📊 ETF & Reksadana", 
+                    "🥇 Emas & Komoditas", 
+                    "🏦 Makro & Regulasi"
+                ])
                 
-                for _, r in df_sub.iterrows():
-                    with st.container():
-                        badge_s = render_badge_sentimen(r['Sentimen'])
-                        badge_b = render_badge_bursa(r['Status Bursa'])
+                with tab_semua:
+                    tampilkan_konten_tab(df_tampil)
+                    
+                with tab_saham:
+                    tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'SAHAM'])
                         
-                        st.markdown(
-                            f"**[{r['Trigger/Emiten']}]** &nbsp; {badge_s} &nbsp; {badge_b} &nbsp; "
-                            f"<small style='color: gray;'>📰 {r['Sumber']} | ⏱️ {r['Tanggal']}</small>", 
-                            unsafe_allow_html=True
-                        )
-                        st.markdown(f"#### [{r['Judul']}]({r['Link']})")
-                        st.write(f"💡 **Ringkasan:** {r['Ringkasan Berita']}")
+                with tab_reksa_etf:
+                    tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'REKSADANA_ETF'])
                         
-                        with st.expander("📄 Baca Isi Berita Lengkap"):
-                            st.write(r['Isi Berita'])
-                        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+                with tab_emas:
+                    tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'EMAS_KOMODITAS'])
+                        
+                with tab_makro:
+                    tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'MAKRO_REGULASI'])
 
-            tab_semua, tab_saham, tab_reksa_etf, tab_emas, tab_makro = st.tabs([
-                "🌐 Semua Berita", 
-                "📈 Saham Emiten", 
-                "📊 ETF & Reksadana", 
-                "🥇 Emas & Komoditas", 
-                "🏦 Makro & Regulasi"
-            ])
-            
-            with tab_semua:
-                tampilkan_konten_tab(df_tampil)
+                df_csv = df_tampil[['Judul', 'Tanggal', 'Kategori Aset', 'Sentimen', 'Status Bursa', 'Akses', 'Ringkasan Berita', 'Isi Berita']]
+                csv_data = df_csv.to_csv(index=False).encode('utf-8')
                 
-            with tab_saham:
-                tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'SAHAM'])
-                    
-            with tab_reksa_etf:
-                tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'REKSADANA_ETF'])
-                    
-            with tab_emas:
-                tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'EMAS_KOMODITAS'])
-                    
-            with tab_makro:
-                tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'MAKRO_REGULASI'])
-
-            df_csv = df_tampil[['Judul', 'Tanggal', 'Kategori Aset', 'Sentimen', 'Status Bursa', 'Akses', 'Ringkasan Berita', 'Isi Berita']]
-            csv_data = df_csv.to_csv(index=False).encode('utf-8')
-            
-            st.download_button(
-                label="📥 Unduh CSV Ringkas",
-                data=csv_data,
-                file_name='laporan_berita_ringkas.csv',
-                mime='text/csv',
-                use_container_width=True
-            )
+                st.download_button(
+                    label="📥 Unduh CSV Ringkas",
+                    data=csv_data,
+                    file_name='laporan_berita_ringkas.csv',
+                    mime='text/csv',
+                    use_container_width=True
+                )
 
             st.markdown("---")
 
             # ==========================================
-            # LAPORAN RINGKAS SIAP KIRIM (DENGAN TOMBOL SALIN OTOMATIS)
+            # LAPORAN RINGKAS SIAP KIRIM (DIBUNGKUS EXPANDER)
             # ==========================================
-            st.markdown("### 📝 Ringkasan Teks Siap Kirim (Format WhatsApp / Catatan)")
-            st.caption("Gunakan tombol salin di pojok kanan atas kotak kode di bawah untuk menyalin seluruh ringkasan:")
+            with st.expander("### 📝 Ringkasan Teks Siap Kirim", expanded=True):
+                st.caption("Gunakan tombol salin di pojok kanan atas kotak kode di bawah atau unduh sebagai dokumen teks (.txt):")
 
-            waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
-            teks_laporan = f"📌 *RADAR BERITA PORTOFOLIO*\n"
-            teks_laporan += f"📅 {waktu_sekarang} | 🎯 Indeks: {skor_indeks}%\n"
-            teks_laporan += f"📊 Total Berita: {len(df_tampil)} Artikel\n"
-            teks_laporan += "----------------------------------------\n\n"
+                waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
+                teks_laporan = f"📌 *RADAR BERITA PORTOFOLIO*\n"
+                teks_laporan += f"📅 {waktu_sekarang} | 🎯 Indeks: {skor_indeks}%\n"
+                teks_laporan += f"📊 Total Berita: {len(df_tampil)} Artikel\n"
+                teks_laporan += "----------------------------------------\n\n"
 
-            for i, row in df_tampil.reset_index(drop=True).iterrows():
-                judul_clean = re.sub(r'\s+', ' ', row['Judul']).strip()
-                ringkasan_clean = re.sub(r'\s+', ' ', row['Ringkasan Berita']).strip()
-                
-                link_asli = row['Link']
-                domain_match = re.search(r'https?://(?:www\.)?([^/]+)', link_asli)
-                domain_pendek = domain_match.group(1) if domain_match else "Link Berita"
-                
-                teks_laporan += f"{i+1}. *{row['Trigger/Emiten']}* ({row['Sentimen']})\n"
-                teks_laporan += f"   📰 {judul_clean}\n"
-                teks_laporan += f"   💡 _{ringkasan_clean}_\n"
-                teks_laporan += f"   🔗 [Baca via {domain_pendek}]({link_asli})\n\n"
+                for i, row in df_tampil.reset_index(drop=True).iterrows():
+                    judul_clean = re.sub(r'\s+', ' ', row['Judul']).strip()
+                    ringkasan_clean = re.sub(r'\s+', ' ', row['Ringkasan Berita']).strip()
+                    
+                    link_asli = row['Link']
+                    domain_match = re.search(r'https?://(?:www\.)?([^/]+)', link_asli)
+                    domain_pendek = domain_match.group(1) if domain_match else "Link Berita"
+                    
+                    teks_laporan += f"{i+1}. *{row['Trigger/Emiten']}* ({row['Sentimen']})\n"
+                    teks_laporan += f"   📰 {judul_clean}\n"
+                    teks_laporan += f"   💡 _{ringkasan_clean}_\n"
+                    teks_laporan += f"   🔗 [Baca via {domain_pendek}]({link_asli})\n\n"
 
-            # Menampilkan teks dalam blok kode yang memiliki tombol salin bawaan (*Copy to Clipboard*)
-            st.code(teks_laporan, language="markdown")
+                # Menampilkan teks dalam blok kode yang memiliki tombol salin bawaan (*Copy to Clipboard*)
+                st.code(teks_laporan, language="markdown")
+
+                # Tombol unduh dokumen teks (.txt)
+                st.download_button(
+                    label="📥 Unduh Ringkasan sebagai Dokumen Teks (.txt)",
+                    data=teks_laporan,
+                    file_name=f"ringkasan_radar_investasi_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
         else:
             st.warning(f"Belum ada berita yang memuat kata kuncimu dalam rentang waktu **{pilihan_rentang}** saat ini.")
