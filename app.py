@@ -1218,10 +1218,10 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
             st.markdown("---")
 
             # ==========================================
-            # LAPORAN RINGKAS SIAP KIRIM (DIPERBARUI LEBIH RINGKAS & LINK PENDEK)
+            # LAPORAN RINGKAS SIAP KIRIM (DENGAN TOMBOL SALIN OTOMATIS)
             # ==========================================
             st.markdown("### 📝 Ringkasan Teks Siap Kirim (Format WhatsApp / Catatan)")
-            st.caption("Salin teks di bawah ini untuk dibagikan ke grup analisis atau pesan pribadi:")
+            st.caption("Gunakan tombol salin di pojok kanan atas kotak kode di bawah untuk menyalin seluruh ringkasan:")
 
             waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
             teks_laporan = f"📌 *RADAR BERITA PORTOFOLIO*\n"
@@ -1242,6 +1242,7 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
                 teks_laporan += f"   💡 _{ringkasan_clean}_\n"
                 teks_laporan += f"   🔗 [Baca via {domain_pendek}]({link_asli})\n\n"
 
-            st.text_area("Format Teks Ringkasan:", value=teks_laporan, height=300)
+            # Menampilkan teks dalam blok kode yang memiliki tombol salin bawaan (*Copy to Clipboard*)
+            st.code(teks_laporan, language="markdown")
         else:
             st.warning(f"Belum ada berita yang memuat kata kuncimu dalam rentang waktu **{pilihan_rentang}** saat ini.")
