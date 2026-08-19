@@ -502,7 +502,8 @@ st.sidebar.title("⚙️ Pengaturan Radar")
 semua_portal_keys = list(aturan_portal.keys())
 
 with st.sidebar.expander("🌐 Pilih Portal & Rentang Waktu", expanded=True):
-    pilih_semua = st.checkbox("✅ Pilih Semua Portal / Kanal", value=False)
+    # 1. Ubah value menjadi True agar otomatis tercentang default
+    pilih_semua = st.checkbox("✅ Pilih Semua Portal / Kanal", value=True)
     
     default_terpilih = semua_portal_keys if pilih_semua else [
         "IDNFinancials",
@@ -529,7 +530,8 @@ with st.sidebar.expander("🌐 Pilih Portal & Rentang Waktu", expanded=True):
             "7 Hari Terakhir",
             "Semua Berita (Tanpa Batas)"
         ],
-        index=3
+        # 2. Ubah index menjadi 1 karena "6 Jam Terakhir" berada di urutan indeks ke-1 (mulai dari 0)
+        index=1
     )
 
 map_jam = {
