@@ -230,17 +230,17 @@ def apakah_duplikat(judul_baru, link_baru, daftar_tersimpan, ambang_kemiripan):
             
     return False
 
-# --- FUNGSI PARSING TANGGAL & STATUS BURSA ---
+# --- FUNGSI PARSING TANGGAL & STATUS BURSA (DENGAN FALLBACK CERDAS) ---
 def konversi_ke_datetime(tanggal_str):
     if not tanggal_str or tanggal_str == 'N/A':
-        return datetime.min
+        return datetime.now()
     try:
         dt = date_parser.parse(tanggal_str)
         if dt.tzinfo is not None:
-            dt = dt.replace(tzinfo=None)
+            dt = dt.astimezone(datetime.now().astimezone().tzinfo).replace(tzinfo=None)
         return dt
     except Exception:
-        return datetime.min
+        return datetime.now()
 
 def apakah_dalam_rentang(tanggal_str, jam_maksimal):
     if not tanggal_str or tanggal_str == 'N/A':
@@ -248,10 +248,12 @@ def apakah_dalam_rentang(tanggal_str, jam_maksimal):
     try:
         dt_berita = date_parser.parse(tanggal_str)
         if dt_berita.tzinfo is not None:
-            dt_berita = dt_berita.replace(tzinfo=None)
+            dt_berita = dt_berita.astimezone(datetime.now().astimezone().tzinfo).replace(tzinfo=None)
             
-        batas_waktu = datetime.now() - timedelta(hours=jam_maksimal)
-        return dt_berita >= batas_waktu
+        waktu_sekarang = datetime.now()
+        batas_waktu = waktu_sekarang - timedelta(hours=jam_maksimal)
+        
+        return batas_waktu <= dt_berita <= waktu_sekarang
     except Exception:
         return True
 
@@ -502,7 +504,6 @@ st.sidebar.title("⚙️ Pengaturan Radar")
 semua_portal_keys = list(aturan_portal.keys())
 
 with st.sidebar.expander("🌐 Pilih Portal & Rentang Waktu", expanded=True):
-    # 1. Ubah value menjadi True agar otomatis tercentang default
     pilih_semua = st.checkbox("✅ Pilih Semua Portal / Kanal", value=True)
     
     default_terpilih = semua_portal_keys if pilih_semua else [
@@ -530,7 +531,6 @@ with st.sidebar.expander("🌐 Pilih Portal & Rentang Waktu", expanded=True):
             "7 Hari Terakhir",
             "Semua Berita (Tanpa Batas)"
         ],
-        # 2. Ubah index menjadi 1 karena "6 Jam Terakhir" berada di urutan indeks ke-1 (mulai dari 0)
         index=1
     )
 
@@ -669,10 +669,10 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
                     
                     judul = entry.get('title', 'N/A')
                     link = entry.get('link', 'N/A')
-                    tanggal = entry.get('published', 'N/A')
+                    tanggal = entry.get('published', '') or entry.get('updated', 'N/A')
                     deskripsi = entry.get('summary', '') + " " + entry.get('description', '')
                     
-                    # 1. Cek Waktu
+                    # 1. Cek Waktu dengan Fallback Cerdas
                     if not apakah_dalam_rentang(tanggal, jam_filter):
                         continue
                     
@@ -1243,10 +1243,8 @@ if st.button("🚀 Mulai Pemindaian Radar Multi-Portal!", type="primary", use_co
                     teks_laporan += f"   💡 _{ringkasan_clean}_\n"
                     teks_laporan += f"   🔗 [Baca via {domain_pendek}]({link_asli})\n\n"
 
-                # Menampilkan teks dalam blok kode yang memiliki tombol salin bawaan (*Copy to Clipboard*)
                 st.code(teks_laporan, language="markdown")
 
-                # Tombol unduh dokumen teks (.txt)
                 st.download_button(
                     label="📥 Unduh Ringkasan sebagai Dokumen Teks (.txt)",
                     data=teks_laporan,
