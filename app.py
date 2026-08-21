@@ -108,8 +108,6 @@ def apakah_dalam_rentang(tanggal_str, jam_maksimal):
             
         waktu_sekarang = datetime.now()
         batas_waktu = waktu_sekarang - timedelta(hours=jam_maksimal)
-        
-        # Toleransi waktu 2 jam untuk selisih zona waktu / server RSS
         batas_waktu_dengan_toleransi = batas_waktu - timedelta(hours=2)
         
         return batas_waktu_dengan_toleransi <= dt_berita <= waktu_sekarang
@@ -144,7 +142,7 @@ def tentukan_kategori_aset(teks_lower):
 
 def bersihkan_judul(judul):
     j = re.sub(r'[^a-zA-Z0-9\s]', '', judul.lower())
-    j = re.sub(r'\s+(cnbc|investor|kontan|katadata|tempo|antara|idxchannel|idnfinancials|detik|bloomberg|cnn|kompas).*$', '', j)
+    j = re.sub(r'\s+(cnbc|investor|kontan|katadata|tempo|antara|idxchannel|idnfinancials|detik|bloomberg|cnn|kompas|bisnis|swa|bareksa|trenasia|wartaekonomi|rm).*$', '', j)
     kata_inti = [kata for kata in j.split() if kata not in STOPWORDS_ID]
     return " ".join(kata_inti).strip()
 
@@ -187,14 +185,29 @@ def analisa_sentimen(teks):
     elif skor_negatif > skor_positif: return "NEGATIF"
     else: return "NETRAL"
 
-def dapatkan_feed_rss(url_rss):
-    try:
-        response = requests.get(url_rss, headers=HEADERS, timeout=12, verify=False)
-        if response.status_code == 200:
-            return feedparser.parse(response.content)
-    except Exception:
-        pass
-    return feedparser.parse(url_rss)
+# --- FUNGSI GABUNGAN (RSS ASLI + FALLBACK GOOGLE NEWS) ---
+def dapatkan_feed_rss(aturan):
+    rss_asli = aturan.get("rss_asli")
+    if rss_asli:
+        try:
+            response = requests.get(rss_asli, headers=HEADERS, timeout=8, verify=False)
+            if response.status_code == 200:
+                feed = feedparser.parse(response.content)
+                if hasattr(feed, 'entries') and len(feed.entries) > 0:
+                    return feed
+        except Exception:
+            pass
+
+    rss_google = aturan.get("rss_google")
+    if rss_google:
+        try:
+            response = requests.get(rss_google, headers=HEADERS, timeout=8, verify=False)
+            if response.status_code == 200:
+                return feedparser.parse(response.content)
+        except Exception:
+            pass
+
+    return feedparser.parse("")
 
 def dapatkan_url_asli(url_target):
     if "news.google.com" in url_target:
@@ -229,67 +242,122 @@ def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
     except Exception as e:
         return f"Error: {e}", "Error"
 
-# --- ATURAN PORTAL LENGKAP TERBARU ---
+# --- ATURAN PORTAL GABUNGAN (TERMASUK SUMBER TAMBAHAN) ---
 aturan_portal = {
-    "IDNFinancials": {
-        "rss": "https://news.google.com/rss/search?q=site:idnfinancials.com/id/news&hl=id&gl=ID&ceid=ID:id", 
-        "tag": "div", "class": "cb", "butuh_page_all": False
-    },
-    "Kompas Money": {
-        "rss": "https://news.google.com/rss/search?q=site:money.kompas.com&hl=id&gl=ID&ceid=ID:id", 
-        "tag": "div", "class": "read__content", "butuh_page_all": True
-    },
     "CNN Indonesia (Ekonomi)": {
-        "rss": "https://www.cnnindonesia.com/ekonomi/rss", 
+        "rss_asli": "https://www.cnnindonesia.com/ekonomi/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnnindonesia.com/ekonomi&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail_text", "butuh_page_all": False
     },
     "CNBC Indonesia (Market)": {
-        "rss": "https://www.cnbcindonesia.com/market/rss", 
+        "rss_asli": "https://www.cnbcindonesia.com/market/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/market&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail_text", "butuh_page_all": False
     },
     "CNBC Indonesia (MyMoney)": {
-        "rss": "https://www.cnbcindonesia.com/mymoney/rss", 
+        "rss_asli": "https://www.cnbcindonesia.com/mymoney/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/mymoney&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail_text", "butuh_page_all": False
     },
     "CNBC Indonesia (News)": {
-        "rss": "https://www.cnbcindonesia.com/news/rss", 
+        "rss_asli": "https://www.cnbcindonesia.com/news/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/news&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail_text", "butuh_page_all": False
     },
-    "Investor.id (Market & Fin)": {
-        "rss": "https://news.google.com/rss/search?q=site:investor.id+(market+OR+finance+OR+saham)&hl=id&gl=ID&ceid=ID:id", 
-        "tag": "div", "class": "read-content", "butuh_page_all": False
-    },
-    "Investor.id (Macro & Investory)": {
-        "rss": "https://news.google.com/rss/search?q=site:investor.id+(macroeconomy+OR+investory)&hl=id&gl=ID&ceid=ID:id", 
-        "tag": "div", "class": "read-content", "butuh_page_all": False
-    },
     "Kontan Utama & Investasi": {
-        "rss": "https://www.kontan.co.id/feed", 
+        "rss_asli": "https://www.kontan.co.id/feed",
+        "rss_google": "https://news.google.com/rss/search?q=site:kontan.co.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
+    },
+    "Kontan Investasi": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:investasi.kontan.co.id&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
     },
     "Katadata": {
-        "rss": "https://katadata.co.id/rss", 
+        "rss_asli": "https://katadata.co.id/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:katadata.co.id&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail-body", "butuh_page_all": False
     },
     "Bloomberg Technoz": {
-        "rss": "https://www.bloombergtechnoz.com/rss", 
+        "rss_asli": "https://www.bloombergtechnoz.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:bloombergtechnoz.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
     "Tempo Bisnis": {
-        "rss": "https://rss.tempo.co/bisnis", 
+        "rss_asli": "https://rss.tempo.co/bisnis",
+        "rss_google": "https://news.google.com/rss/search?q=site:bisnis.tempo.co&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail-konten", "butuh_page_all": False
     },
     "ANTARA Ekonomi": {
-        "rss": "https://www.antaranews.com/rss/ekonomi-bisnis.xml", 
+        "rss_asli": "https://www.antaranews.com/rss/ekonomi-bisnis.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com/ekonomi&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
     },
     "IDX Channel": {
-        "rss": "https://news.google.com/rss/search?q=site:idxchannel.com&hl=id&gl=ID&ceid=ID:id", 
+        "rss_asli": "https://www.idxchannel.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:idxchannel.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail-text", "butuh_page_all": False
     },
     "Detik Finance": {
-        "rss": "https://finance.detik.com/rss", 
+        "rss_asli": "https://finance.detik.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:finance.detik.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+    },
+    "Bisnis Indonesia": {
+        "rss_asli": "https://www.bisnis.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:bisnis.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "details-content", "butuh_page_all": False
+    },
+    "Bisnis Market": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:market.bisnis.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "details-content", "butuh_page_all": False
+    },
+    "SWA Online": {
+        "rss_asli": "https://swa.co.id/feed",
+        "rss_google": "https://news.google.com/rss/search?q=site:swa.co.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "entry-content", "butuh_page_all": False
+    },
+    "Bareksa": {
+        "rss_asli": "https://www.bareksa.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:bareksa.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False
+    },
+    "TrenAsia": {
+        "rss_asli": "https://www.trenasia.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:trenasia.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "content-detail", "butuh_page_all": False
+    },
+    "Warta Ekonomi": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:wartaekonomi.co.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read-content", "butuh_page_all": False
+    },
+    "RM.id Ekonomi": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:rm.id+ekonomi+OR+bumn+OR+saham&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "entry-content", "butuh_page_all": False
+    },
+    "IDNFinancials": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:idnfinancials.com/id/news&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "cb", "butuh_page_all": False
+    },
+    "Kompas Money": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:money.kompas.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True
+    },
+    "Investor.id (Market & Fin)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:investor.id+(market+OR+finance+OR+saham)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read-content", "butuh_page_all": False
+    },
+    "Investor.id (Macro & Investory)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:investor.id+(macroeconomy+OR+investory)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read-content", "butuh_page_all": False
     }
 }
 
@@ -380,7 +448,6 @@ st.markdown("""
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.5) !important;
         }
         
-        /* --- CSS RESPONSIF UNTUK PERANGKAT MOBILE --- */
         @media (max-width: 768px) {
             .header-title {
                 font-size: 1.8rem !important;
@@ -403,7 +470,6 @@ if 'df_hasil' not in st.session_state: st.session_state.df_hasil = None
 if 'duration_scan' not in st.session_state: st.session_state.duration_scan = 0
 if 'skor_indeks_val' not in st.session_state: st.session_state.skor_indeks_val = 50.0
 
-# --- MODERN HEADER DESIGN ---
 st.markdown("""
     <style>
         .header-card {
@@ -457,7 +523,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- METRIC KARTU STATISTIK DI ATAS ---
 if st.session_state.df_hasil is not None:
     df_mem = st.session_state.df_hasil
     tot_berita = len(df_mem)
@@ -481,7 +546,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- PANEL PENGATURAN & PARAMETER PEMINDAIAN ---
 with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
     tab1, tab2 = st.tabs(["🗄️ Sumber Berita", "🔔 Notifikasi & Opsi"])
     
@@ -498,7 +562,7 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
         pilihan_rentang = st.select_slider(
             "Rentang Waktu Pemindaian:",
             options=["3 Jam Terakhir", "6 Jam Terakhir", "24 Jam Terakhir (1 Hari)", "3 Hari Terakhir", "Semua Berita (Tanpa Batas)"],
-            value="3 Jam Terakhir"
+            value="24 Jam Terakhir (1 Hari)"
         )
         map_jam = {
             "3 Jam Terakhir": 3, 
@@ -553,7 +617,7 @@ if tombol_scan:
             """, unsafe_allow_html=True)
             
             aturan = aturan_portal[nama_portal]
-            feed = dapatkan_feed_rss(aturan["rss"])
+            feed = dapatkan_feed_rss(aturan)
             if feed and hasattr(feed, 'entries') and len(feed.entries) > 0:
                 for entry in feed.entries:
                     judul = entry.get('title', 'N/A')
@@ -589,7 +653,7 @@ if tombol_scan:
                         "Link": link, "Isi Berita": isi
                     })
                     daftar_tersimpan.append({"link": link, "judul_bersih": bersihkan_judul(judul)})
-                    time.sleep(0.2)
+                    time.sleep(0.1)
             progress_bar.progress((idx + 1) / total_portal)
         
         duration = round(time.time() - start_time, 2)
@@ -603,7 +667,7 @@ if tombol_scan:
             n_neg = len(df[df['Sentimen'] == 'NEGATIF'])
             non_netral = n_pos + n_neg
             st.session_state.skor_indeks_val = round((n_pos / non_netral) * 100, 1) if non_netral > 0 else 50.0
-            st.success(f"Radar Selesai! Menemukan {len(df)} berita unik dalam {duration} detik. (Silakan muat ulang/klik menu lain atau gulir untuk melihat pembaruan metrik kartu di atas).")
+            st.success(f"Radar Selesai! Menemukan {len(df)} berita unik dalam {duration} detik.")
         else:
             st.session_state.df_hasil = None
             st.warning("Tidak ada berita yang sesuai dengan kriteria waktu & kata kunci portofolio.")

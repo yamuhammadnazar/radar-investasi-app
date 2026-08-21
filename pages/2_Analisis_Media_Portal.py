@@ -66,30 +66,38 @@ st.markdown("---")
 
 df = st.session_state.get('df_hasil', None)
 
-# Daftar lengkap seluruh portal acuan dari app.py
+# Daftar lengkap seluruh 23 portal acuan sinkron dengan app.py
 SEMUA_PORTAL_LIST = [
-    "IDNFinancials",
-    "Kompas Money",
     "CNN Indonesia (Ekonomi)",
     "CNBC Indonesia (Market)",
     "CNBC Indonesia (MyMoney)",
     "CNBC Indonesia (News)",
-    "Investor.id (Market & Fin)",
-    "Investor.id (Macro & Investory)",
     "Kontan Utama & Investasi",
+    "Kontan Investasi",
     "Katadata",
     "Bloomberg Technoz",
     "Tempo Bisnis",
     "ANTARA Ekonomi",
     "IDX Channel",
-    "Detik Finance"
+    "Detik Finance",
+    "Bisnis Indonesia",
+    "Bisnis Market",
+    "SWA Online",
+    "Bareksa",
+    "TrenAsia",
+    "Warta Ekonomi",
+    "RM.id Ekonomi",
+    "IDNFinancials",
+    "Kompas Money",
+    "Investor.id (Market & Fin)",
+    "Investor.id (Macro & Investory)"
 ]
 
 if df is None or df.empty:
-    st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama (`app.py`).[cite: 3]")
+    st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama (`app.py`).")
 else:
     st.subheader("Sebaran Fokus Kategori Aset per Portal Berita")
-    st.markdown("Grafik ini menunjukkan kategori aset apa yang paling sering diliput oleh masing-masing portal berita.[cite: 3]")
+    st.markdown("Grafik ini menunjukkan kategori aset apa yang paling sering diliput oleh masing-masing portal berita.")
     
     pivot_portal_aset = df.groupby(['Sumber', 'Kategori Aset']).size().unstack(fill_value=0)
     st.bar_chart(pivot_portal_aset, height=380, use_container_width=True)
@@ -101,7 +109,7 @@ else:
         st.markdown("### Portal Paling Produktif")
         top_portal = df['Sumber'].value_counts().idxmax()
         jumlah_top = df['Sumber'].value_counts().max()
-        st.success(f"**{top_portal}** menjadi penyumbang berita terbanyak dengan total **{jumlah_top} artikel** dalam pemindaian sesi ini.[cite: 3]")
+        st.success(f"**{top_portal}** menjadi penyumbang berita terbanyak dengan total **{jumlah_top} artikel** dalam pemindaian sesi ini.")
         
         st.markdown("### Rincian Jumlah Berita per Kanal:")
         st.dataframe(df['Sumber'].value_counts().reset_index().rename(columns={'index': 'Portal', 'count': 'Jumlah Berita', 'Sumber': 'Portal'}), use_container_width=True)
@@ -110,7 +118,7 @@ else:
         st.markdown("### Dominasi Fokus Kategori Aset")
         top_kategori = df['Kategori Aset'].value_counts().idxmax()
         jumlah_kat = df['Kategori Aset'].value_counts().max()
-        st.info(f"Kategori aset yang paling mendominasi pemberitaan saat ini adalah **{top_kategori}** sebanyak **{jumlah_kat} artikel**.[cite: 3]")
+        st.info(f"Kategori aset yang paling mendominasi pemberitaan saat ini adalah **{top_kategori}** sebanyak **{jumlah_kat} artikel**.")
         
         st.markdown("### Persentase Kategori Aset:")
         kat_counts = df['Kategori Aset'].value_counts()
@@ -122,10 +130,9 @@ else:
     # --- STATUS KESEHATAN & DIAGNOSTIK SELURUH PORTAL (TERMASUK YANG 0 ARTIKEL) ---
     st.markdown("---")
     st.subheader("🩺 Laporan Kesehatan & Performa Scraping Seluruh Portal")
-    st.markdown("Memantau seluruh kanal terdaftar untuk mengetahui portal mana yang berhasil menyumbang berita dan mana yang kosong/tidak ada data.[cite: 3]")
+    st.markdown("Memantau seluruh kanal terdaftar untuk mengetahui portal mana yang berhasil menyumbang berita dan mana yang kosong/tidak ada data.")
 
     if 'Akses' in df.columns and 'Sumber' in df.columns:
-        # Buat rekap dari data yang ada
         rekap_aktual = df.groupby('Sumber').agg(
             Total_Artikel=('Judul', 'count'),
             Konten_Penuh=('Akses', lambda x: (x == 'Penuh').sum()),
@@ -133,7 +140,6 @@ else:
             Error_Gagal=('Akses', lambda x: x.str.contains('Error|Gagal', case=False, na=False).sum())
         ).reset_index()
 
-        # Gabungkan dengan daftar SEMUA_PORTAL_LIST agar portal yang 0 artikel tetap muncul di tabel
         df_master_portal = pd.DataFrame({'Sumber': SEMUA_PORTAL_LIST})
         rekap_portal = pd.merge(df_master_portal, rekap_aktual, on='Sumber', how='left').fillna({
             'Total_Artikel': 0,
@@ -142,10 +148,8 @@ else:
             'Error_Gagal': 0
         })
 
-        # Menghitung persentase sukses ekstraksi konten penuh
         rekap_portal['Tingkat Sukses (%)'] = ((rekap_portal['Konten_Penuh'] / rekap_portal['Total_Artikel'].replace(0, 1)) * 100).round(1)
 
-        # Menentukan Status Kesehatan Termasuk Penanganan 0 Artikel
         def tentukan_status_sehat(row):
             if row['Total_Artikel'] == 0:
                 return "⚪ 0 Artikel / Tidak Ada Berita Sesuai Filter"
@@ -158,11 +162,9 @@ else:
 
         rekap_portal['Status Sistem'] = rekap_portal.apply(tentukan_status_sehat, axis=1)
 
-        # Susun ulang kolom agar lebih rapi
         rekap_portal = rekap_portal[['Sumber', 'Status Sistem', 'Total_Artikel', 'Konten_Penuh', 'Terbatas_Paywall', 'Error_Gagal', 'Tingkat Sukses (%)']]
         rekap_portal = rekap_portal.sort_values(by='Total_Artikel', ascending=False).reset_index(drop=True)
 
-        # Tampilkan metrik ringkasan di atas tabel
         m1, m2, m3 = st.columns(3)
         total_portal_scan = len(rekap_portal)
         portal_aktif = len(rekap_portal[rekap_portal['Total_Artikel'] > 0])
@@ -175,6 +177,6 @@ else:
         st.markdown("<br>", unsafe_allow_html=True)
         st.dataframe(rekap_portal, use_container_width=True, hide_index=True)
         
-        st.caption("ℹ️ *Catatan: Status '0 Artikel' menandakan bahwa portal aktif diperiksa, namun tidak ada berita yang cocok dengan kata kunci portofolio atau rentang waktu yang Anda pilih pada sesi pemindaian tersebut.*[cite: 3]")
+        st.caption("ℹ️ *Catatan: Status '0 Artikel' menandakan bahwa portal aktif diperiksa, namun tidak ada berita yang cocok dengan kata kunci portofolio atau rentang waktu yang Anda pilih pada sesi pemindaian tersebut.*")
     else:
-        st.info("Data status akses belum tersedia.[cite: 3]")
+        st.info("Data status akses belum tersedia.")
