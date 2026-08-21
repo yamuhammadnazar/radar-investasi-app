@@ -284,7 +284,7 @@ aturan_portal = {
         "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
     },
     "IDX Channel": {
-        "rss": "https://www.idxchannel.com/rss", 
+        "rss": "https://news.google.com/rss/search?q=site:idxchannel.com&hl=id&gl=ID&ceid=ID:id", 
         "tag": "div", "class": "detail-text", "butuh_page_all": False
     },
     "Detik Finance": {
