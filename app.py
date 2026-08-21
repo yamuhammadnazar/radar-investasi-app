@@ -109,7 +109,7 @@ def apakah_dalam_rentang(tanggal_str, jam_maksimal):
         waktu_sekarang = datetime.now()
         batas_waktu = waktu_sekarang - timedelta(hours=jam_maksimal)
         
-        # Toleransi waktu 2 jam ke belakang untuk mengantisipasi selisih UTC/server
+        # Toleransi waktu 2 jam untuk selisih zona waktu / server RSS
         batas_waktu_dengan_toleransi = batas_waktu - timedelta(hours=2)
         
         return batas_waktu_dengan_toleransi <= dt_berita <= waktu_sekarang
@@ -378,6 +378,23 @@ st.markdown("""
             background: linear-gradient(135deg, #1f6feb 0%, #238636 100%) !important;
             color: white !important;
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.5) !important;
+        }
+        
+        /* --- CSS RESPONSIF UNTUK PERANGKAT MOBILE --- */
+        @media (max-width: 768px) {
+            .header-title {
+                font-size: 1.8rem !important;
+            }
+            .header-card {
+                padding: 1.2rem !important;
+            }
+            .tag-container {
+                flex-wrap: wrap !important;
+                gap: 6px !important;
+            }
+            .metric-card {
+                margin-bottom: 10px !important;
+            }
         }
     </style>
 """, unsafe_allow_html=True)
