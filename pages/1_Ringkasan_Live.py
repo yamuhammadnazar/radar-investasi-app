@@ -79,6 +79,7 @@ if df is None or df.empty:
 else:
     n_pos = len(df[df['Sentimen'] == 'POSITIF'])
     n_neg = len(df[df['Sentimen'] == 'NEGATIF'])
+    n_net = len(df[df['Sentimen'] == 'NETRAL'])
 
     if skor_indeks >= 70: label_indeks, pen = "Sangat Positif (Bullish)", "Pasar didominasi sentimen positif."
     elif skor_indeks >= 55: label_indeks, pen = "Cenderung Positif", "Sentimen positif memimpin secara proporsional."
@@ -97,6 +98,43 @@ else:
     m3.metric("Negatif", f"{n_neg} Berita")
     m4.metric("Durasi Scan", f"{duration} Detik")
 
+    # --- GRAFIK 1 & 2: Donut Chart Proporsi Sentimen & Stacked Bar Kategori Aset ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    c_inf1, c_inf2 = st.columns(2)
+    with c_inf1:
+        st.markdown("**Proporsi Sentimen Keseluruhan (Donut Chart)**")
+        fig_donut, ax_donut = plt.subplots(figsize=(5, 4))
+        sentimen_counts = [n_pos, n_net, n_neg]
+        sentimen_labels = ['Positif', 'Netral', 'Negatif']
+        sentimen_colors = ['#2ea043', '#8b949e', '#f85149']
+        ax_donut.pie(sentimen_counts, labels=sentimen_labels, colors=sentimen_colors, autopct='%1.1f%%', startangle=90, wedgeprops=dict(width=0.45, edgecolor='w'))
+        ax_donut.axis('equal')
+        st.pyplot(fig_donut)
+        
+    with c_inf2:
+        st.markdown("**Komposisi Sentimen Berdasarkan Kategori Aset**")
+        if 'Kategori Aset' in df.columns:
+            pivot_kat_sentimen = df.groupby(['Kategori Aset', 'Sentimen']).size().unstack(fill_value=0)
+            for col in ['POSITIF', 'NETRAL', 'NEGATIF']:
+                if col not in pivot_kat_sentimen.columns: pivot_kat_sentimen[col] = 0
+            st.bar_chart(pivot_kat_sentimen[['POSITIF', 'NETRAL', 'NEGATIF']], color=["#2ea043", "#adb5bd", "#f85149"], height=240, use_container_width=True)
+        else:
+            st.info("Data Kategori Aset belum tersedia.")
+
+    # --- GRAFIK BARU: Dominasi Kategori Aset Portofolio (Share of Assets) ---
+    st.markdown("---")
+    st.subheader("Dominasi Kategori Aset Portofolio (Share of Assets)")
+    if 'Kategori Aset' in df.columns:
+        aset_counts = df['Kategori Aset'].value_counts()
+        fig_asset, ax_asset = plt.subplots(figsize=(8, 3))
+        ax_asset.barh(aset_asset_labels := aset_counts.index[::-1], aset_counts.values[::-1], color='#238636')
+        ax_asset.set_xlabel('Jumlah Artikel')
+        ax_asset.set_title('Porsi Perhatian Berita per Kategori Aset')
+        st.pyplot(fig_asset)
+    else:
+        st.info("Data Kategori Aset tidak tersedia.")
+
+    st.markdown("---")
     col_p1, col_p2 = st.columns([1.2, 1.8])
     with col_p1:
         st.markdown("**Porsi Distribusi Portal (Share of Voice)**")
@@ -112,15 +150,47 @@ else:
             if col not in sentimen_media.columns: sentimen_media[col] = 0
         st.bar_chart(sentimen_media[['POSITIF', 'NEGATIF', 'NETRAL']], color=["#28a745", "#dc3545", "#adb5bd"], height=320, use_container_width=True)
 
+    # --- GRAFIK BARU: Distribusi Status Akses & Kesehatan Portal ---
     st.markdown("---")
-    st.subheader("Tren Volume Berita per Jam")
+    st.subheader("Distribusi Status Akses & Keandalan Ekstraksi Portal")
+    if 'Akses' in df.columns:
+        akses_counts = df['Akses'].value_counts()
+        fig_aks, ax_aks = plt.subplots(figsize=(6, 3))
+        ax_aks.bar(akses_counts.index, akses_counts.values, color=['#1f6feb', '#d29922', '#f85149'])
+        ax_aks.set_ylabel('Jumlah Berita')
+        ax_aks.set_title('Status Keberhasilan Scraping Konten')
+        st.pyplot(fig_aks)
+    else:
+        st.info("Data status akses tidak tersedia.")
+
+    st.markdown("---")
+    st.subheader("Tren Volume Berita per Jam & Matriks Sentimen")
     df_chart_valid = df[df['dt_sort'] != datetime.min].copy()
     if not df_chart_valid.empty:
         df_chart_valid['Jam'] = df_chart_valid['dt_sort'].dt.strftime('%H:00')
-        tren_jam = df_chart_valid.groupby('Jam').size().reset_index(name='Jumlah Berita')
-        st.line_chart(data=tren_jam.set_index('Jam'), use_container_width=True)
+        
+        # --- GRAFIK BARU: Matriks Waktu & Sentimen per Jam ---
+        tren_sentimen_jam = df_chart_valid.groupby(['Jam', 'Sentimen']).size().unstack(fill_value=0)
+        for col in ['POSITIF', 'NETRAL', 'NEGATIF']:
+            if col not in tren_sentimen_jam.columns: tren_sentimen_jam[col] = 0
+        st.markdown("**Matriks Sentimen per Jam (Hourly Sentiment Trend)**")
+        st.bar_chart(tren_sentimen_jam[['POSITIF', 'NETRAL', 'NEGATIF']], color=["#2ea043", "#adb5bd", "#f85149"], height=280, use_container_width=True)
     else:
         st.info("Format tanggal berita tidak memuat informasi jam yang valid.")
+
+    # --- Peringkat Emiten / Trigger Paling Sering Dibahas ---
+    st.markdown("---")
+    st.subheader("Peringkat Trigger / Emiten Paling Sering Dibahas")
+    if 'Trigger/Emiten' in df.columns:
+        top_triggers = df['Trigger/Emiten'].value_counts().head(8).reset_index()
+        top_triggers.columns = ['Trigger', 'Jumlah']
+        fig_trig, ax_trig = plt.subplots(figsize=(8, 3.5))
+        ax_trig.barh(top_triggers['Trigger'][::-1], top_triggers['Jumlah'][::-1], color='#1f6feb')
+        ax_trig.set_xlabel('Jumlah Artikel')
+        ax_trig.set_title('Top Trigger / Emiten Berita')
+        st.pyplot(fig_trig)
+    else:
+        st.info("Data trigger emiten tidak tersedia.")
 
     st.markdown("---")
     st.subheader("Analisis Tren Kata Kunci Berita")
