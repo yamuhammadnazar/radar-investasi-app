@@ -113,15 +113,44 @@ skor_indeks = st.session_state.get('skor_indeks_val', 50.0)
 if df is None or df.empty:
     st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama.")
 else:
-    waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
+    with st.container(border=True):
+        st.markdown("##### ⚙️ Kustomisasi Format & Filter Laporan")
+        
+        col_c1, col_c2, col_c3 = st.columns(3)
+        with col_c1:
+            opt_hanya_negatif = st.checkbox("Hanya Berita Negatif", value=False)
+        with col_c2:
+            opt_sertakan_ringkasan = st.checkbox("Sertakan Ringkasan Berita", value=True)
+        with col_c3:
+            opt_sertakan_link = st.checkbox("Sertakan Tautan Sumber", value=True)
+
+        st.markdown("<hr style='margin: 12px 0; border-color: #30363d;'>", unsafe_allow_html=True)
+
+        # Filter Kategori Aset / Sektor
+        list_kategori = df['Kategori Aset'].dropna().unique().tolist() if 'Kategori Aset' in df.columns else []
+        selected_kategori = st.multiselect(
+            "Filter Berdasarkan Kelompok/Sektor Aset (Kosongkan jika ingin ekspor semua)",
+            options=list_kategori,
+            default=[]
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Proses Filtering Dataframe
+    df_export = df.copy()
+    if opt_hanya_negatif and 'Sentimen' in df_export.columns:
+        df_export = df_export[df_export['Sentimen'] == 'NEGATIF']
     
-    total_artikel = len(df)
-    total_saham = len(df[df['Kategori Aset'] == 'SAHAM']) if 'Kategori Aset' in df.columns else 0
+    if selected_kategori and 'Kategori Aset' in df_export.columns:
+        df_export = df_export[df_export['Kategori Aset'].isin(selected_kategori)]
+
+    waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
+    total_artikel = len(df_export)
     total_negatif = len(df[df['Sentimen'] == 'NEGATIF']) if 'Sentimen' in df.columns else 0
 
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
-        st.markdown(f'<div class="metric-card-export"><div class="val">{total_artikel} Artikel</div><div class="lbl">Total Terarsip</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card-export"><div class="val">{total_artikel} Artikel</div><div class="lbl">Total Diekspor</div></div>', unsafe_allow_html=True)
     with col_m2:
         st.markdown(f'<div class="metric-card-export"><div class="val" style="color:#238636">{skor_indeks}%</div><div class="lbl">Skor Indeks Portofolio</div></div>', unsafe_allow_html=True)
     with col_m3:
@@ -131,21 +160,27 @@ else:
 
     teks_laporan = f"RADAR BERITA PORTOFOLIO\n{waktu_sekarang} | Indeks: {skor_indeks}%\nTotal Berita: {total_artikel} Artikel\n----------------------------------------\n\n"
 
-    for i, row in df.reset_index(drop=True).iterrows():
+    for i, row in df_export.reset_index(drop=True).iterrows():
         judul_clean = re.sub(r'\s+', ' ', row['Judul']).strip()
-        ringkasan_clean = re.sub(r'\s+', ' ', row['Ringkasan Berita']).strip()
-        link_asli = row['Link']
-        domain_match = re.search(r'https?://(?:www\.)?([^/]+)', link_asli)
-        domain_pendek = domain_match.group(1) if domain_match else "Link Berita"
-
-        teks_laporan += f"{i+1}. {row['Trigger/Emiten']} ({row['Sentimen']})\n"
+        kategori_teks = f" [{row['Kategori Aset']}]" if 'Kategori Aset' in row and row['Kategori Aset'] else ""
+        teks_laporan += f"{i+1}. [{row['Trigger/Emiten']}] ({row['Sentimen']}){kategori_teks} - {row['Status Bursa']}\n"
         teks_laporan += f"   {judul_clean}\n"
-        teks_laporan += f"   _{ringkasan_clean}_\n"
-        teks_laporan += f"   [Baca via {domain_pendek}]({link_asli})\n\n"
+        
+        if opt_sertakan_ringkasan:
+            ringkasan_clean = re.sub(r'\s+', ' ', row['Ringkasan Berita']).strip()
+            teks_laporan += f"   _{ringkasan_clean}_\n"
+            
+        if opt_sertakan_link:
+            link_asli = row['Link']
+            domain_match = re.search(r'https?://(?:www\.)?([^/]+)', link_asli)
+            domain_pendek = domain_match.group(1) if domain_match else "Link Berita"
+            teks_laporan += f"   [Baca via {domain_pendek}]({link_asli})\n"
+            
+        teks_laporan += "\n"
 
     with st.container(border=True):
         st.markdown("### 📥 Panel Aksi & Pratinjau Dokumen")
-        st.markdown("<p style='color: #8b949e; font-size: 0.95rem; margin-bottom: 1.2rem;'>Unduh hasil kompilasi berita portofolio dalam bentuk file teks bersih atau periksa langsung melalui kotak pratinjau di bawah.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #8b949e; font-size: 0.95rem; margin-bottom: 1.2rem;'>Unduh hasil kompilasi berita portofolio dalam bentuk file teks bersih sesuai kustomisasi sektor dan filter di atas.</p>", unsafe_allow_html=True)
         
         col_btn1, col_btn2 = st.columns([1, 1], gap="medium")
         with col_btn1:
