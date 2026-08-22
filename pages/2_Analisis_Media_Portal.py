@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from wordcloud import WordCloud
 
 st.set_page_config(page_title="Analisis Media & Portal", layout="wide", initial_sidebar_state="expanded")
 
@@ -143,7 +144,7 @@ SEMUA_PORTAL_LIST = [
 if df is None or df.empty:
     st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama (`app.py`).")
 else:
-    # --- BAGIAN 1: SEBARAN FOKUS KATEGORI ASET (Menggunakan container border resmi) ---
+    # --- BAGIAN 1: SEBARAN FOKUS KATEGORI ASET ---
     with st.container(border=True):
         st.subheader("📊 Sebaran Fokus Kategori Aset per Portal Berita")
         st.caption("Grafik ini menunjukkan kategori aset apa yang paling sering diliput oleh masing-masing portal berita.")
@@ -151,7 +152,59 @@ else:
         pivot_portal_aset = df.groupby(['Sumber', 'Kategori Aset']).size().unstack(fill_value=0)
         st.bar_chart(pivot_portal_aset, height=360, use_container_width=True)
 
-    # --- BAGIAN 2 & 3: DUA KOLOM PRODUKTIVITAS & DOMINASI ---
+    # --- BAGIAN 2: WORD CLOUD & TIME HEATMAP (FITUR BARU) ---
+    col_f1, col_f2 = st.columns(2, gap="large")
+
+    with col_f1:
+        with st.container(border=True):
+            st.subheader("☁️ Word Cloud Judul Berita")
+            st.caption("Visualisasi kata kunci yang paling sering muncul dalam judul berita saat ini.")
+            
+            if 'Judul' in df.columns and not df['Judul'].isnull().all():
+                text_gabungan = " ".join(df['Judul'].dropna().astype(str).tolist())
+                if len(text_gabungan.strip()) > 0:
+                    wordcloud = WordCloud(
+                        width=600, height=350, 
+                        background_color='#0e1117', 
+                        colormap='Blues',
+                        max_words=100
+                    ).generate(text_gabungan)
+                    
+                    fig_wc, ax_wc = plt.subplots(figsize=(5, 3))
+                    fig_wc.patch.set_facecolor('#0e1117')
+                    ax_wc.imshow(wordcloud, interpolation='bilinear')
+                    ax_wc.axis('off')
+                    st.pyplot(fig_wc)
+                else:
+                    st.info("Teks judul tidak mencukupi untuk membuat Word Cloud.")
+            else:
+                st.info("Kolom 'Judul' tidak ditemukan dalam data.")
+
+    with col_f2:
+        with st.container(border=True):
+            st.subheader("⏰ Distribusi Waktu Publikasi")
+            st.caption("Analisis jam atau waktu rilis berita dominan dari hasil pemindaian.")
+            
+            kolom_waktu = None
+            for col in ['Waktu', 'Tanggal', 'Jam', 'Timestamp']:
+                if col in df.columns:
+                    kolom_waktu = col
+                    break
+            
+            if kolom_waktu:
+                try:
+                    df['Jam_Temp'] = pd.to_datetime(df[kolom_waktu], errors='coerce').dt.hour
+                    jam_counts = df['Jam_Temp'].value_counts().sort_index()
+                    if not jam_counts.empty:
+                        st.bar_chart(jam_counts, height=220, use_container_width=True)
+                    else:
+                        st.info("Format waktu tidak dapat diurai ke dalam jam.")
+                except Exception:
+                    st.info("Gagal memproses data waktu publikasi.")
+            else:
+                st.info("Kolom waktu/tanggal spesifik belum terdeteksi di data pemindaian. Pastikan dataframe memiliki kolom waktu jika ingin menampilkan grafik tren jam.")
+
+    # --- BAGIAN 3 & 4: DUA KOLOM PRODUKTIVITAS & DOMINASI ---
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
@@ -209,7 +262,7 @@ else:
             with c_mid:
                 st.pyplot(fig)
 
-    # --- BAGIAN 4: LAPORAN KESEHATAN PORTAL ---
+    # --- BAGIAN 5: LAPORAN KESEHATAN PORTAL ---
     with st.container(border=True):
         st.subheader("🩺 Laporan Kesehatan & Performa Scraping Seluruh Portal")
         st.caption("Memantau seluruh kanal terdaftar untuk mengetahui portal mana yang berhasil menyumbang berita dan mana yang kosong/tidak ada data.")
