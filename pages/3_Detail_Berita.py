@@ -90,6 +90,9 @@ st.markdown("""
 
 df = st.session_state.get('df_hasil', None)
 
+if 'bookmarked_links' not in st.session_state:
+    st.session_state['bookmarked_links'] = []
+
 if df is None or df.empty:
     st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama.")
 else:
@@ -158,25 +161,45 @@ else:
     def render_badge_bursa(status_bursa):
         return f'<span style="background-color: rgba(110, 118, 129, 0.1); color: #c9d1d9; border: 1px solid #30363d; padding: 3px 8px; border-radius: 6px; font-size: 0.75em;">{status_bursa}</span>'
 
-    def tampilkan_konten_tab(df_sub):
+    def tampilkan_konten_tab(df_sub, tab_prefix=""):
         if df_sub.empty:
             st.info("Tidak ada berita pada kategori ini.")
             return
-        for _, r in df_sub.iterrows():
+        
+        for idx, r in df_sub.iterrows():
             with st.container(border=True):
-                st.markdown(f"**[{r['Trigger/Emiten']}]** &nbsp; {render_badge_sentimen(r['Sentimen'])} &nbsp; {render_badge_bursa(r['Status Bursa'])} &nbsp; <small style='color: #8b949e;'>📰 {r['Sumber']} | ⏱️ {r['Tanggal']}</small>", unsafe_allow_html=True)
+                col_info, col_btn = st.columns([8, 2])
+                with col_info:
+                    st.markdown(f"**[{r['Trigger/Emiten']}]** &nbsp; {render_badge_sentimen(r['Sentimen'])} &nbsp; {render_badge_bursa(r['Status Bursa'])} &nbsp; <small style='color: #8b949e;'>📰 {r['Sumber']} | ⏱️ {r['Tanggal']}</small>", unsafe_allow_html=True)
+                with col_btn:
+                    link_key = r['Link']
+                    is_bookmarked = link_key in st.session_state['bookmarked_links']
+                    btn_label = "⭐ Disimpan" if is_bookmarked else "☆ Tandai"
+                    if st.button(btn_label, key=f"bm_{tab_prefix}_{idx}"):
+                        if is_bookmarked:
+                            st.session_state['bookmarked_links'].remove(link_key)
+                        else:
+                            st.session_state['bookmarked_links'].append(link_key)
+                        st.rerun()
+
                 st.markdown(f"#### [{r['Judul']}]({r['Link']})")
                 st.write(f"**Ringkasan:** {r['Ringkasan Berita']}")
                 with st.expander("Baca Isi Berita Lengkap"):
                     st.write(r['Isi Berita'])
 
-    t1, t2, t3, t4, t5 = st.tabs(["Semua Berita", "Saham Emiten", "ETF & Reksadana", "Emas & Komoditas", "Makro & Regulasi"])
+    t1, t2, t3, t4, t5, t6 = st.tabs(["Semua Berita", "Saham Emiten", "ETF & Reksadana", "Emas & Komoditas", "Makro & Regulasi", "⭐ Tersimpan"])
     
-    with t1: tampilkan_konten_tab(df_tampil)
-    with t2: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'SAHAM'])
-    with t3: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'REKSADANA_ETF'])
-    with t4: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'EMAS_KOMODITAS'])
-    with t5: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'MAKRO_REGULASI'])
+    with t1: tampilkan_konten_tab(df_tampil, tab_prefix="t1")
+    with t2: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'SAHAM'], tab_prefix="t2")
+    with t3: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'REKSADANA_ETF'], tab_prefix="t3")
+    with t4: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'EMAS_KOMODITAS'], tab_prefix="t4")
+    with t5: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'MAKRO_REGULASI'], tab_prefix="t5")
+    with t6:
+        df_saved = df_display[df_display['Link'].isin(st.session_state['bookmarked_links'])]
+        if df_saved.empty:
+            st.info("Belum ada berita yang ditandai (Bookmark).")
+        else:
+            tampilkan_konten_tab(df_saved, tab_prefix="t6")
 
     st.markdown("<br>", unsafe_allow_html=True)
     df_csv = df_tampil[['Judul', 'Tanggal', 'Kategori Aset', 'Sentimen', 'Status Bursa', 'Ringkasan Berita']]
