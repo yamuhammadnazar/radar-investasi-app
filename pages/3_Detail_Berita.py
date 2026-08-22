@@ -4,7 +4,6 @@ st.set_page_config(page_title="Detail Berita Aset", layout="wide", initial_sideb
 
 st.markdown("""
     <style>
-        /* CSS SIDEBAR (KODE ASLI ANDA - TIDAK DIUBAH SAMA SEKALI) */
         [data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
             border-right: 1px solid #30363d;
@@ -42,7 +41,6 @@ st.markdown("""
             box-shadow: 0 3px 8px rgba(31, 111, 235, 0.3);
         }
         
-        /* TOMBOL (KODE ASLI ANDA) */
         .stButton button[kind="primary"] {
             background: linear-gradient(135deg, #1f6feb 0%, #238636 100%);
             color: white;
@@ -59,7 +57,6 @@ st.markdown("""
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.5) !important;
         }
 
-        /* HEADER BANNER MODERN */
         .hero-title-box {
             background: linear-gradient(135deg, rgba(31, 111, 235, 0.15) 0%, rgba(35, 134, 54, 0.08) 100%);
             border: 1px solid #30363d;
@@ -83,7 +80,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Header Banner
 st.markdown("""
     <div class="hero-title-box">
         <h1>Detail Berita & Kategori Aset</h1>
@@ -96,11 +92,12 @@ df = st.session_state.get('df_hasil', None)
 if df is None or df.empty:
     st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama.")
 else:
-    col_f1, _ = st.columns([1, 2])
+    col_f1, col_f2 = st.columns([1, 2])
     with col_f1:
         hanya_negatif = st.checkbox("Tampilkan Hanya Berita Negatif (Fokus Risiko)", value=False)
+    with col_f2:
+        keyword_search = st.text_input("🔍 Cari Kata Kunci (Emiten, Judul, atau Topik)", value="", placeholder="Contoh: ACES, dividen, inflasi...")
 
-    # Memeriksa apakah 'dt_sort' ada sebelum didrop untuk menghindari error
     if 'dt_sort' in df.columns:
         df_display = df.drop(columns=['dt_sort'])
     else:
@@ -108,8 +105,20 @@ else:
 
     df_tampil = df_display[df_display['Sentimen'] == 'NEGATIF'] if hanya_negatif else df_display
 
-    if hanya_negatif and df_tampil.empty:
+    if keyword_search.strip():
+        query = keyword_search.lower()
+        mask = (
+            df_tampil['Judul'].astype(str).str.lower().str.contains(query, na=False) |
+            df_tampil['Trigger/Emiten'].astype(str).str.lower().str.contains(query, na=False) |
+            df_tampil['Sumber'].astype(str).str.lower().str.contains(query, na=False) |
+            df_tampil['Ringkasan Berita'].astype(str).str.lower().str.contains(query, na=False)
+        )
+        df_tampil = df_tampil[mask]
+
+    if hanya_negatif and df_tampil.empty and not keyword_search:
         st.info("Aman! Tidak ada berita bersentimen negatif.")
+    elif keyword_search and df_tampil.empty:
+        st.info(f"Tidak ditemukan berita yang cocok dengan kata kunci: **'{keyword_search}'**")
 
     def render_badge_sentimen(sentimen):
         if "POSITIF" in sentimen: 
