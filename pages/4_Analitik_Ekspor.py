@@ -57,12 +57,55 @@ st.markdown("""
             color: white !important;
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.5) !important;
         }
+
+        .hero-title-box {
+            background: linear-gradient(135deg, rgba(31, 111, 235, 0.15) 0%, rgba(35, 134, 54, 0.08) 100%);
+            border: 1px solid #30363d;
+            border-left: 6px solid #1f6feb;
+            padding: 1.5rem 2rem;
+            border-radius: 12px;
+            margin-bottom: 1.8rem;
+        }
+        .hero-title-box h1 {
+            color: #f0f6fc;
+            font-size: 2.1rem;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+        .hero-title-box p {
+            color: #8b949e;
+            margin: 6px 0 0 0;
+            font-size: 1rem;
+        }
+
+        .metric-card-export {
+            background: rgba(22, 27, 34, 0.7);
+            border: 1px solid #30363d;
+            padding: 1.2rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .metric-card-export .val {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #58a6ff;
+        }
+        .metric-card-export .lbl {
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("Pusat Ekspor Laporan & Teks Siap Kirim")
-st.markdown("##### *Salin Laporan Ringkas atau Unduh sebagai Dokumen Teks (.txt)*")
-st.markdown("---")
+st.markdown("""
+    <div class="hero-title-box">
+        <h1>Pusat Ekspor Laporan & Teks Siap Kirim</h1>
+        <p>Salin Laporan Ringkas atau Unduh sebagai Dokumen Teks (.txt)</p>
+    </div>
+""", unsafe_allow_html=True)
 
 df = st.session_state.get('df_hasil', None)
 skor_indeks = st.session_state.get('skor_indeks_val', 50.0)
@@ -71,7 +114,22 @@ if df is None or df.empty:
     st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama.")
 else:
     waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
-    teks_laporan = f"RADAR BERITA PORTOFOLIO\n{waktu_sekarang} | Indeks: {skor_indeks}%\nTotal Berita: {len(df)} Artikel\n----------------------------------------\n\n"
+    
+    total_artikel = len(df)
+    total_saham = len(df[df['Kategori Aset'] == 'SAHAM']) if 'Kategori Aset' in df.columns else 0
+    total_negatif = len(df[df['Sentimen'] == 'NEGATIF']) if 'Sentimen' in df.columns else 0
+
+    col_m1, col_m2, col_m3 = st.columns(3)
+    with col_m1:
+        st.markdown(f'<div class="metric-card-export"><div class="val">{total_artikel} Artikel</div><div class="lbl">Total Terarsip</div></div>', unsafe_allow_html=True)
+    with col_m2:
+        st.markdown(f'<div class="metric-card-export"><div class="val" style="color:#238636">{skor_indeks}%</div><div class="lbl">Skor Indeks Portofolio</div></div>', unsafe_allow_html=True)
+    with col_m3:
+        st.markdown(f'<div class="metric-card-export"><div class="val" style="color:#f85149">{total_negatif} Isu</div><div class="lbl">Sentimen Negatif</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    teks_laporan = f"RADAR BERITA PORTOFOLIO\n{waktu_sekarang} | Indeks: {skor_indeks}%\nTotal Berita: {total_artikel} Artikel\n----------------------------------------\n\n"
 
     for i, row in df.reset_index(drop=True).iterrows():
         judul_clean = re.sub(r'\s+', ' ', row['Judul']).strip()
@@ -85,13 +143,22 @@ else:
         teks_laporan += f"   _{ringkasan_clean}_\n"
         teks_laporan += f"   [Baca via {domain_pendek}]({link_asli})\n\n"
 
-    st.download_button(
-        label="Unduh Ringkasan sebagai Dokumen Teks (.txt)",
-        data=teks_laporan,
-        file_name=f"ringkasan_radar_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-        mime="text/plain",
-        use_container_width=True
-    )
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.code(teks_laporan, language="markdown")
+    with st.container(border=True):
+        st.markdown("### 📥 Panel Aksi & Pratinjau Dokumen")
+        st.markdown("<p style='color: #8b949e; font-size: 0.95rem; margin-bottom: 1.2rem;'>Unduh hasil kompilasi berita portofolio dalam bentuk file teks bersih atau periksa langsung melalui kotak pratinjau di bawah.</p>", unsafe_allow_html=True)
+        
+        col_btn1, col_btn2 = st.columns([1, 1], gap="medium")
+        with col_btn1:
+            st.download_button(
+                label="📥 Unduh Dokumen Ringkasan (.txt)",
+                data=teks_laporan,
+                file_name=f"ringkasan_radar_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
+        with col_btn2:
+            st.button("📋 Status Kompilasi: Siap Ekspor", disabled=True, use_container_width=True)
+
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        st.markdown("**Pratinjau Format Teks:**")
+        st.code(teks_laporan, language="markdown")
