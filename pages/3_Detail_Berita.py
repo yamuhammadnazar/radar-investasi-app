@@ -64,7 +64,7 @@ st.markdown("""
             border-left: 6px solid #1f6feb;
             padding: 1.5rem 2rem;
             border-radius: 12px;
-            margin-bottom: 1.8rem;
+            margin-bottom: 1.5rem;
         }
         .hero-title-box h1 {
             color: #f0f6fc;
@@ -96,29 +96,36 @@ if 'bookmarked_links' not in st.session_state:
 if df is None or df.empty:
     st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama.")
 else:
-    col_f1, col_f2, col_f3 = st.columns([1, 1, 1])
-    with col_f1:
-        hanya_negatif = st.checkbox("Tampilkan Hanya Berita Negatif (Fokus Risiko)", value=False)
-    with col_f2:
-        keyword_search = st.text_input("🔍 Cari Kata Kunci", value="", placeholder="Contoh: ACES, dividen...")
-    with col_f3:
-        aktifkan_filter_tanggal = st.checkbox("Aktifkan Filter Rentang Tanggal", value=False)
+    with st.container(border=True):
+        st.markdown("##### ⚙️ Panel Kontrol & Filter Berita Interaktif")
+        
+        col_f1, col_f2 = st.columns([1, 1], gap="large")
+        
+        with col_f1:
+            hanya_negatif = st.checkbox("🚨 Fokus Risiko (Hanya Berita Negatif)", value=False)
+            aktifkan_filter_tanggal = st.checkbox("📅 Aktifkan Filter Rentang Tanggal", value=False)
+            
+        with col_f2:
+            keyword_search = st.text_input("🔍 Cari Kata Kunci", value="", placeholder="Contoh: ACES, dividen, IHSG...")
 
-    if aktifkan_filter_tanggal:
-        kolom_tgl = 'dt_sort' if 'dt_sort' in df.columns else ('Tanggal' if 'Tanggal' in df.columns else None)
-        if kolom_tgl:
-            try:
-                df['temp_date'] = pd.to_datetime(df[kolom_tgl], errors='coerce').dt.date
-                min_d = df['temp_date'].min()
-                max_d = df['temp_date'].max()
-                if pd.isna(min_d) or pd.isna(max_d):
+        if aktifkan_filter_tanggal:
+            st.markdown("<hr style='margin: 15px 0; border-color: #30363d;'>", unsafe_allow_html=True)
+            kolom_tgl = 'dt_sort' if 'dt_sort' in df.columns else ('Tanggal' if 'Tanggal' in df.columns else None)
+            if kolom_tgl:
+                try:
+                    df['temp_date'] = pd.to_datetime(df[kolom_tgl], errors='coerce').dt.date
+                    min_d = df['temp_date'].min()
+                    max_d = df['temp_date'].max()
+                    if pd.isna(min_d) or pd.isna(max_d):
+                        date_range = st.date_input("Pilih Rentang Tanggal")
+                    else:
+                        date_range = st.date_input("Pilih Rentang Tanggal", value=(min_d, max_d), min_value=min_d, max_value=max_d)
+                except Exception:
                     date_range = st.date_input("Pilih Rentang Tanggal")
-                else:
-                    date_range = st.date_input("Pilih Rentang Tanggal", value=(min_d, max_d), min_value=min_d, max_value=max_d)
-            except Exception:
+            else:
                 date_range = st.date_input("Pilih Rentang Tanggal")
-        else:
-            date_range = st.date_input("Pilih Rentang Tanggal")
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     if 'dt_sort' in df.columns:
         df_display = df.drop(columns=['dt_sort'])
