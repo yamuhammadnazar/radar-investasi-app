@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="Detail Berita Aset", layout="wide", initial_sidebar_state="expanded")
 
@@ -92,11 +93,29 @@ df = st.session_state.get('df_hasil', None)
 if df is None or df.empty:
     st.warning("Belum ada data pemindaian. Jalankan pemindaian terlebih dahulu dari menu utama.")
 else:
-    col_f1, col_f2 = st.columns([1, 2])
+    col_f1, col_f2, col_f3 = st.columns([1, 1, 1])
     with col_f1:
         hanya_negatif = st.checkbox("Tampilkan Hanya Berita Negatif (Fokus Risiko)", value=False)
     with col_f2:
-        keyword_search = st.text_input("🔍 Cari Kata Kunci (Emiten, Judul, atau Topik)", value="", placeholder="Contoh: ACES, dividen, inflasi...")
+        keyword_search = st.text_input("🔍 Cari Kata Kunci", value="", placeholder="Contoh: ACES, dividen...")
+    with col_f3:
+        aktifkan_filter_tanggal = st.checkbox("Aktifkan Filter Rentang Tanggal", value=False)
+
+    if aktifkan_filter_tanggal:
+        kolom_tgl = 'dt_sort' if 'dt_sort' in df.columns else ('Tanggal' if 'Tanggal' in df.columns else None)
+        if kolom_tgl:
+            try:
+                df['temp_date'] = pd.to_datetime(df[kolom_tgl], errors='coerce').dt.date
+                min_d = df['temp_date'].min()
+                max_d = df['temp_date'].max()
+                if pd.isna(min_d) or pd.isna(max_d):
+                    date_range = st.date_input("Pilih Rentang Tanggal")
+                else:
+                    date_range = st.date_input("Pilih Rentang Tanggal", value=(min_d, max_d), min_value=min_d, max_value=max_d)
+            except Exception:
+                date_range = st.date_input("Pilih Rentang Tanggal")
+        else:
+            date_range = st.date_input("Pilih Rentang Tanggal")
 
     if 'dt_sort' in df.columns:
         df_display = df.drop(columns=['dt_sort'])
@@ -115,10 +134,19 @@ else:
         )
         df_tampil = df_tampil[mask]
 
-    if hanya_negatif and df_tampil.empty and not keyword_search:
-        st.info("Aman! Tidak ada berita bersentimen negatif.")
-    elif keyword_search and df_tampil.empty:
-        st.info(f"Tidak ditemukan berita yang cocok dengan kata kunci: **'{keyword_search}'**")
+    if aktifkan_filter_tanggal and 'temp_date' in df.columns:
+        if isinstance(date_range, tuple) and len(date_range) == 2:
+            start_d, end_d = date_range
+            df_tampil = df_tampil[(df_tampil['temp_date'] >= start_d) & (df_tampil['temp_date'] <= end_d)]
+        elif isinstance(date_range, tuple) and len(date_range) == 1:
+            start_d = date_range[0]
+            df_tampil = df_tampil[df_tampil['temp_date'] >= start_d]
+
+    if 'temp_date' in df.columns:
+        df_tampil = df_tampil.drop(columns=['temp_date'])
+
+    if df_tampil.empty:
+        st.info("Tidak ada berita yang cocok dengan filter atau kata kunci yang dipilih.")
 
     def render_badge_sentimen(sentimen):
         if "POSITIF" in sentimen: 
