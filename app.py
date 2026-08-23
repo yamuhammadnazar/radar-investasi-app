@@ -35,7 +35,7 @@ KATEGORI_PORTOFOLIO = {
         "otomotif", "spare part", "aftermarket",
         "farmasi", "herbal", "consumer health",
         "retail", "home improvement",
-        "batu bara", "energi", "kelistrikan", "bbm"
+        "batu bara"
     ],
     "ETF": [
         "r-lq45x", "lq45", "indeks lq45", "rebalancing lq45", 
@@ -64,11 +64,10 @@ KATEGORI_PORTOFOLIO = {
     "REGULASI": [
         "ojk", "bei", "kementerian keuangan", "kementerian esdm", 
         "kementerian perindustrian", "kementerian perdagangan", 
-        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr"
+        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN"
     ],
     "UMUM": [
-        "cpns", "calon pegawai negeri sipil", "pns", "asn", "bkn", 
-        "seleksi cpns", "pendaftaran cpns", "formasi cpns", "skd cpns", "skb cpns"
+        "cpns", "seleksi cpns","energi", "kelistrikan", "bbm", "daya beli", "Indeks", "Bencana","Anime"
     ]
 }
 
@@ -364,7 +363,19 @@ aturan_portal = {
         "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:investor.id+(macroeconomy+OR+investory)&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "read-content", "butuh_page_all": False
+    },
+
+    "MetroTV News": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:metrotvnews.com+OR+site:metrotvnews.com/news&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "container-flex pb-20", "butuh_page_all": False
+    },
+    "tvOne News": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:tvonenews.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "article", "class": "content-article", "butuh_page_all": False
     }
+    
 }
 
 kata_kunci_portofolio = [kw for sublist in KATEGORI_PORTOFOLIO.values() for kw in sublist]
@@ -563,7 +574,7 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
         portal_terpilih = st.multiselect(
             "Filter Kanal:", 
             options=semua_portal_keys, 
-            default=semua_portal_keys if pilih_semua else ["IDNFinancials", "Kontan Utama & Investasi"]
+            default=semua_portal_keys if pilih_semua else []
         )
 
         pilihan_rentang = st.select_slider(

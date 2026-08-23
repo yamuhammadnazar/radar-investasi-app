@@ -138,7 +138,9 @@ SEMUA_PORTAL_LIST = [
     "IDNFinancials",
     "Kompas Money",
     "Investor.id (Market & Fin)",
-    "Investor.id (Macro & Investory)"
+    "Investor.id (Macro & Investory)",
+    "MetroTV News",
+    "tvOne News"
 ]
 
 if df is None or df.empty:
