@@ -106,7 +106,7 @@ else:
             aktifkan_filter_tanggal = st.checkbox("📅 Aktifkan Filter Rentang Tanggal", value=False)
             
         with col_f2:
-            keyword_search = st.text_input("🔍 Cari Kata Kunci", value="", placeholder="Contoh: ACES, dividen, IHSG...")
+            keyword_search = st.text_input("🔍 Cari Kata Kunci", value="", placeholder="Contoh: ACES, dividen, CPNS...")
 
         if aktifkan_filter_tanggal:
             st.markdown("<hr style='margin: 15px 0; border-color: #30363d;'>", unsafe_allow_html=True)
@@ -194,19 +194,20 @@ else:
                 with st.expander("Baca Isi Berita Lengkap"):
                     st.write(r['Isi Berita'])
 
-    t1, t2, t3, t4, t5, t6 = st.tabs(["Semua Berita", "Saham Emiten", "ETF & Reksadana", "Emas & Komoditas", "Makro & Regulasi", "⭐ Tersimpan"])
+    t1, t2, t3, t4, t5, t6, t7 = st.tabs(["Semua Berita", "Saham Emiten", "ETF & Reksadana", "Emas & Komoditas", "Makro & Regulasi", "Umum", "⭐ Tersimpan"])
     
     with t1: tampilkan_konten_tab(df_tampil, tab_prefix="t1")
     with t2: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'SAHAM'], tab_prefix="t2")
     with t3: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'REKSADANA_ETF'], tab_prefix="t3")
     with t4: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'EMAS_KOMODITAS'], tab_prefix="t4")
     with t5: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'MAKRO_REGULASI'], tab_prefix="t5")
-    with t6:
+    with t6: tampilkan_konten_tab(df_tampil[df_tampil['Kategori Aset'] == 'UMUM'], tab_prefix="t6")
+    with t7:
         df_saved = df_display[df_display['Link'].isin(st.session_state['bookmarked_links'])]
         if df_saved.empty:
             st.info("Belum ada berita yang ditandai (Bookmark).")
         else:
-            tampilkan_konten_tab(df_saved, tab_prefix="t6")
+            tampilkan_konten_tab(df_saved, tab_prefix="t7")
 
     st.markdown("<br>", unsafe_allow_html=True)
     df_csv = df_tampil[['Judul', 'Tanggal', 'Kategori Aset', 'Sentimen', 'Status Bursa', 'Ringkasan Berita']]

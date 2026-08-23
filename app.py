@@ -65,6 +65,10 @@ KATEGORI_PORTOFOLIO = {
         "ojk", "bei", "kementerian keuangan", "kementerian esdm", 
         "kementerian perindustrian", "kementerian perdagangan", 
         "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr"
+    ],
+    "UMUM": [
+        "cpns", "calon pegawai negeri sipil", "pns", "asn", "bkn", 
+        "seleksi cpns", "pendaftaran cpns", "formasi cpns", "skd cpns", "skb cpns"
     ]
 }
 
@@ -138,6 +142,8 @@ def tentukan_kategori_aset(teks_lower):
                     return "EMAS_KOMODITAS"
                 elif kat in ["MAKRO_INDONESIA", "MAKRO_GLOBAL", "REGULASI"]:
                     return "MAKRO_REGULASI"
+                elif kat in ["UMUM"]:
+                    return "UMUM"
     return "MAKRO_REGULASI"
 
 def bersihkan_judul(judul):
@@ -519,6 +525,7 @@ st.markdown("""
             <span class="tag">ETF & Reksadana</span>
             <span class="tag">Komoditas</span>
             <span class="tag">Makro & Regulasi</span>
+            <span class="tag">Umum (CPNS)</span>
         </div>
     </div>
 """, unsafe_allow_html=True)
@@ -561,12 +568,13 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
 
         pilihan_rentang = st.select_slider(
             "Rentang Waktu Pemindaian:",
-            options=["3 Jam Terakhir", "6 Jam Terakhir", "24 Jam Terakhir (1 Hari)", "3 Hari Terakhir", "Semua Berita (Tanpa Batas)"],
+            options=["3 Jam Terakhir", "6 Jam Terakhir", "12 Jam Terakhir", "24 Jam Terakhir (1 Hari)", "3 Hari Terakhir", "Semua Berita (Tanpa Batas)"],
             value="24 Jam Terakhir (1 Hari)"
         )
         map_jam = {
             "3 Jam Terakhir": 3, 
             "6 Jam Terakhir": 6, 
+            "12 Jam Terakhir": 12,
             "24 Jam Terakhir (1 Hari)": 24, 
             "3 Hari Terakhir": 72, 
             "Semua Berita (Tanpa Batas)": 87600
