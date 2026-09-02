@@ -61,7 +61,8 @@ KATEGORI_PORTOFOLIO = {
         "smsm", "selamat sempurna",
         "sido", "industri jamu dan farmasi sido muncul",
         "ptba", "bukit asam",
-        "aces", "aspirasi hidup indonesia"
+        "aces", "aspirasi hidup indonesia",
+        "laporan keuangan", "Laba bersih",
     ],
     "SEKTOR_SAHAM": [
         "keramik", "properti", "konstruksi",
