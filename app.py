@@ -8,11 +8,19 @@ ARSITEKTUR:
 - utils/http_client.py: Session HTTP dengan retry + connection pooling
 - utils/cache.py      : Caching layer berbasis SQLite
 - utils/scraper.py    : Scraping concurrent dengan ThreadPoolExecutor
+- utils/sentiment.py  : Advanced sentiment (negation + intensifier)
+- utils/tickers.py    : NER emiten IDX (regex + kamus emiten)
+- utils/telegram_notifier.py: Notifikasi Telegram real-time
 
 PERFORMA:
 - Paralelisme: 5 worker per portal, batch processing
 - Caching: SQLite TTL (1 jam feed, 6 jam artikel)
 - Retry otomatis untuk status 5xx & 429
+
+FITUR:
+- Sentiment analisis dengan negasi & intensifier
+- Auto-detect emiten via ticker/nama perusahaan
+- Telegram notifier dengan filter & quiet hours
 """
 import streamlit as st
 import pandas as pd
@@ -32,6 +40,13 @@ from utils import (
     get_http_session,
     get_cache_stats,
     cache_clear_expired,
+    analisa_sentimen_advanced,
+    extract_tickers,
+    get_primary_ticker,
+    extract_portfolio_hits,
+    TelegramNotifier,
+    TelegramConfig,
+    test_connection,
 )
 
 
@@ -279,8 +294,23 @@ def process_entry(
     isi = hasil.get("isi", "Konten tidak dapat diekstrak.")
     status_akses = hasil.get("status_akses", "Error")
 
-    # Analisis tambahan
-    sentimen_label = analisa_sentimen(judul + " " + isi)
+    # ============================================================
+    # ANALISIS LANJUTAN: SENTIMENT + NER
+    # ============================================================
+
+    # 1. Advanced sentiment (dengan negasi & intensifier)
+    full_text = judul + " " + isi
+    sentimen_label, sentimen_conf, sentimen_debug = analisa_sentimen_advanced(full_text)
+
+    # 2. NER: deteksi ticker emiten dari teks
+    ticker_entities = extract_tickers(full_text, top_n=3)
+    primary_ticker = ticker_entities[0]["ticker"] if ticker_entities else trigger_terdeteksi
+
+    # 3. Highlight jika portofolio user terkena
+    portfolio_hits = extract_portfolio_hits(full_text)
+    is_portfolio = len(portfolio_hits) > 0
+
+    # 4. Ringkasan & kategori
     ringkasan_teks = ringkas_teks(isi, kata_kunci_portofolio, max_kalimat=2)
     kategori_aset = tentukan_kategori_aset(teks_pencocokan)
     dt_obj = konversi_ke_datetime(tanggal)
@@ -289,7 +319,12 @@ def process_entry(
         "Sumber": aturan.get("__nama_portal", "N/A"),
         "Kategori Aset": kategori_aset,
         "Trigger/Emiten": trigger_terdeteksi,
+        "PrimaryTicker": primary_ticker,
+        "TickerEntities": ticker_entities,
+        "IsPortfolio": is_portfolio,
         "Sentimen": sentimen_label,
+        "SentimenConfidence": sentimen_conf,
+        "SentimenSkor": sentimen_debug["skor"],
         "Status Bursa": cek_status_bursa(dt_obj),
         "Akses": status_akses,
         "Judul": judul,
@@ -528,12 +563,47 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
             ambang_duplikat = st.slider("Ambang Kemiripan:", 0.5, 0.95, 0.75, 0.05)
 
         st.markdown("---")
-        st.markdown("**Integrasi Telegram**")
+        st.markdown("**📲 Integrasi Telegram Notifier**")
+        telegram_aktif = st.toggle(
+            "Aktifkan Notifikasi Telegram",
+            value=False,
+            help="Kirim alert otomatis ke Telegram saat ada berita sesuai filter"
+        )
         col_tg1, col_tg2 = st.columns(2)
         with col_tg1:
-            bot_token = st.text_input("Bot Token:", placeholder="Masukkan token...", type="password")
+            bot_token = st.text_input("Bot Token:", placeholder="123456:ABC-DEF...", type="password")
         with col_tg2:
-            chat_id = st.text_input("Chat ID:", placeholder="Masukkan chat ID...", value="")
+            chat_id = st.text_input("Chat ID:", placeholder="-1001234567890 atau @username", value="")
+
+        # Filter notifikasi
+        st.markdown("##### 🔔 Filter Notifikasi")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            telegram_min_sentimen = st.selectbox(
+                "Kirim hanya sentimen:",
+                ["ANY", "POSITIF", "NEGATIF"],
+                help="Filter apa saja yang dikirim ke Telegram"
+            )
+        with col_f2:
+            telegram_only_portfolio = st.toggle(
+                "Hanya emiten portofolio",
+                value=False,
+                help="Hanya kirim jika emiten ada di watchlist (ARNA, BRIS, SMSM, dll)"
+            )
+
+        telegram_batch_mode = st.checkbox(
+            "Mode Batch (kirim digest setiap 10 berita)",
+            value=False
+        )
+
+        # Test koneksi button
+        if bot_token and chat_id:
+            if st.button("🔌 Tes Koneksi Telegram"):
+                success, msg = test_connection(bot_token, chat_id)
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
 
     with tab3:
         st.markdown("### ⚡ Optimasi Performa")
@@ -695,10 +765,42 @@ if tombol_scan:
             st.session_state.skor_indeks_val = (
                 round((n_pos / non_netral) * 100, 1) if non_netral > 0 else 50.0
             )
-            st.success(
+
+            # ============================================================
+            # TELEGRAM NOTIFICATION (jika aktif)
+            # ============================================================
+            telegram_sent = 0
+            telegram_terakhir_error = None
+            if telegram_aktif and bot_token and chat_id:
+                try:
+                    tg_config = TelegramConfig(
+                        bot_token=bot_token,
+                        chat_id=chat_id,
+                        enabled=True,
+                        min_sentiment=telegram_min_sentimen,
+                        portfolio_only=telegram_only_portfolio,
+                        batch_mode=telegram_batch_mode,
+                    )
+                    notifier = TelegramNotifier(tg_config)
+                    for record in kumpulan_data_global:
+                        if notifier.notify_artikel(record):
+                            telegram_sent += 1
+                    # Flush sisa batch
+                    if telegram_batch_mode:
+                        notifier.flush_batch()
+                except Exception as e:
+                    telegram_terakhir_error = str(e)[:80]
+
+            success_msg = (
                 f"🎯 Radar Selesai! Menemukan {len(df)} berita unik dalam {duration} detik "
                 f"(workers={max_workers}, cache entries baru={max(0, cache_hits_scan)})."
             )
+            if telegram_aktif and bot_token and chat_id:
+                if telegram_terakhir_error:
+                    success_msg += f" ⚠️ Telegram error: {telegram_terakhir_error}"
+                else:
+                    success_msg += f" 📲 Telegram: {telegram_sent} notif terkirim."
+            st.success(success_msg)
         else:
             st.warning("Tidak ada berita yang sesuai dengan kriteria waktu & kata kunci portofolio.")
 
