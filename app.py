@@ -1,25 +1,44 @@
+"""
+Radar Portofolio - Main Application
+===================================
+Terminal monitoring real-time untuk aset dan sentimen pasar strategis.
+
+ARSITEKTUR:
+- utils/portals.py    : Konfigurasi portal berita
+- utils/http_client.py: Session HTTP dengan retry + connection pooling
+- utils/cache.py      : Caching layer berbasis SQLite
+- utils/scraper.py    : Scraping concurrent dengan ThreadPoolExecutor
+
+PERFORMA:
+- Paralelisme: 5 worker per portal, batch processing
+- Caching: SQLite TTL (1 jam feed, 6 jam artikel)
+- Retry otomatis untuk status 5xx & 429
+"""
 import streamlit as st
-import feedparser
-import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 import time
-import urllib3
 import re
+import gc
 from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 from difflib import SequenceMatcher
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Mematikan peringatan SSL
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from utils import (
+    aturan_portal,
+    dapatkan_feed_rss,
+    dapatkan_url_asli,
+    scrape_artikel,
+    get_http_session,
+    get_cache_stats,
+    cache_clear_expired,
+)
 
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-}
 
-# --- KELOMPOK KATEGORI PORTOFOLIO ---
+# ============================================================
+# KONSTANTA KATEGORI & LEKSIKON
+# ============================================================
+
 KATEGORI_PORTOFOLIO = {
     "SAHAM_EMITEN": [
         "arna", "arwana citramulia",
@@ -38,12 +57,12 @@ KATEGORI_PORTOFOLIO = {
         "batu bara"
     ],
     "ETF": [
-        "r-lq45x", "lq45", "indeks lq45", "rebalancing lq45", 
+        "r-lq45x", "lq45", "indeks lq45", "rebalancing lq45",
         "konstituen lq45", "etf indonesia", "foreign flow"
     ],
     "REKSADANA": [
-        "majoris pasar uang syariah", "mandiri invasta dana syariah", 
-        "sucorinvest equity fund", "pasar uang syariah", "sukuk", 
+        "majoris pasar uang syariah", "mandiri invasta dana syariah",
+        "sucorinvest equity fund", "pasar uang syariah", "sukuk",
         "sbsn", "obligasi syariah", "reksadana saham", "reksadana obligasi"
     ],
     "EMAS": [
@@ -53,33 +72,34 @@ KATEGORI_PORTOFOLIO = {
         "harga batu bara", "hba", "coal price", "harga minyak", "oil price"
     ],
     "MAKRO_INDONESIA": [
-        "bi rate", "bank indonesia", "inflasi indonesia", "rupiah", "usd/idr", 
-        "gdp indonesia", "pertumbuhan ekonomi", "apbn", "yield obligasi", 
+        "bi rate", "bank indonesia", "inflasi indonesia", "rupiah", "usd/idr",
+        "gdp indonesia", "pertumbuhan ekonomi", "apbn", "yield obligasi",
         "ihsg", "foreign flow", "net buy asing", "net sell asing"
     ],
     "MAKRO_GLOBAL": [
-        "federal reserve", "fed rate", "us cpi", "us pce", "us nfp", 
+        "federal reserve", "fed rate", "us cpi", "us pce", "us nfp",
         "us treasury yield", "dxy", "china economy", "china stimulus", "ftse", "msci"
     ],
     "REGULASI": [
-        "ojk", "bei", "kementerian keuangan", "kementerian esdm", 
-        "kementerian perindustrian", "kementerian perdagangan", 
+        "ojk", "bei", "kementerian keuangan", "kementerian esdm",
+        "kementerian perindustrian", "kementerian perdagangan",
         "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN"
     ],
     "UMUM": [
-        "cpns", "seleksi cpns","energi", "kelistrikan", "bbm", "daya beli", "Indeks", "Bencana","Anime"
+        "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
+        "Indeks", "Bencana", "Anime"
     ]
 }
 
 KATA_POSITIF = [
-    "laba", "untung", "naik", "melonjak", "meroket", "tumbuh", "ekspansi", 
-    "dividen", "deviden", "surplus", "bullish", "rekor", "positif", "penguatan", 
+    "laba", "untung", "naik", "melonjak", "meroket", "tumbuh", "ekspansi",
+    "dividen", "deviden", "surplus", "bullish", "rekor", "positif", "penguatan",
     "terangkat", "melejit", "dividen yield", "buyback", "prospek cerah"
 ]
 
 KATA_NEGATIF = [
-    "rugi", "kerugian", "anjlok", "turun", "merosot", "terperosok", "gugatan", 
-    "sanksi", "denda", "bearish", "negatif", "pelemahan", "tertekan", "kasus", 
+    "rugi", "kerugian", "anjlok", "turun", "merosot", "terperosok", "gugatan",
+    "sanksi", "denda", "bearish", "negatif", "pelemahan", "tertekan", "kasus",
     "pailit", "bangkrut", "korupsi", "sengketa", "gagal bayar", "pemecatan", "phk"
 ]
 
@@ -89,6 +109,13 @@ STOPWORDS_ID = set([
     "saat", "menjadi", "lebih", "hari", "secara", "sudah", "dapat", "tersebut", "persen",
     "rp", "juta", "miliar", "triliun", "sebesar", "mencapai", "catat", "hingga"
 ])
+
+kata_kunci_portofolio = [kw for sublist in KATEGORI_PORTOFOLIO.values() for kw in sublist]
+
+
+# ============================================================
+# HELPER FUNCTIONS (TIDAK BERUBAH SIGNIFIKAN)
+# ============================================================
 
 def konversi_ke_datetime(tanggal_str):
     if not tanggal_str or tanggal_str == 'N/A':
@@ -101,6 +128,7 @@ def konversi_ke_datetime(tanggal_str):
     except Exception:
         return datetime.now()
 
+
 def apakah_dalam_rentang(tanggal_str, jam_maksimal):
     if not tanggal_str or tanggal_str == 'N/A':
         return True
@@ -108,14 +136,13 @@ def apakah_dalam_rentang(tanggal_str, jam_maksimal):
         dt_berita = date_parser.parse(tanggal_str)
         if dt_berita.tzinfo is not None:
             dt_berita = dt_berita.astimezone().replace(tzinfo=None)
-            
         waktu_sekarang = datetime.now()
         batas_waktu = waktu_sekarang - timedelta(hours=jam_maksimal)
         batas_waktu_dengan_toleransi = batas_waktu - timedelta(hours=2)
-        
         return batas_waktu_dengan_toleransi <= dt_berita <= waktu_sekarang
     except Exception:
         return True
+
 
 def cek_status_bursa(dt_obj):
     if dt_obj == datetime.min:
@@ -126,8 +153,8 @@ def cek_status_bursa(dt_obj):
         return "Akhir Pekan (Tutup)"
     if 9 <= jam < 16:
         return "Bursa Buka"
-    else:
-        return "Luar Jam Bursa"
+    return "Luar Jam Bursa"
+
 
 def tentukan_kategori_aset(teks_lower):
     for kat, kw_list in KATEGORI_PORTOFOLIO.items():
@@ -145,23 +172,30 @@ def tentukan_kategori_aset(teks_lower):
                     return "UMUM"
     return "MAKRO_REGULASI"
 
+
 def bersihkan_judul(judul):
     j = re.sub(r'[^a-zA-Z0-9\s]', '', judul.lower())
-    j = re.sub(r'\s+(cnbc|investor|kontan|katadata|tempo|antara|idxchannel|idnfinancials|detik|bloomberg|cnn|kompas|bisnis|swa|bareksa|trenasia|wartaekonomi|rm).*$', '', j)
+    j = re.sub(
+        r'\s+(cnbc|investor|kontan|katadata|tempo|antara|idxchannel|idnfinancials|detik|bloomberg|cnn|kompas|bisnis|swa|bareksa|trenasia|wartaekonomi|rm).*$',
+        '', j
+    )
     kata_inti = [kata for kata in j.split() if kata not in STOPWORDS_ID]
     return " ".join(kata_inti).strip()
 
-def rasio_kemiripan(judul_bersih_a, judul_bersih_b):
-    return SequenceMatcher(None, judul_bersih_a, judul_bersih_b).ratio()
 
-def apakah_duplikat(judul_baru, link_baru, daftar_tersimpan, ambang_kemiripan):
-    judul_bersih_baru = bersihkan_judul(judul_baru)
+def rasio_kemiripan(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def apakah_duplikat(judul_baru, link_baru, daftar_tersimpan, ambang):
+    judul_bersih = bersihkan_judul(judul_baru)
     for item in daftar_tersimpan:
         if link_baru == item['link']:
             return True
-        if rasio_kemiripan(judul_bersih_baru, item['judul_bersih']) >= ambang_kemiripan:
+        if rasio_kemiripan(judul_bersih, item['judul_bersih']) >= ambang:
             return True
     return False
+
 
 def ringkas_teks(teks, kata_kunci_list, max_kalimat=2):
     if not teks or "tidak dapat diekstrak" in teks or "terkunci" in teks:
@@ -174,192 +208,117 @@ def ringkas_teks(teks, kata_kunci_list, max_kalimat=2):
         kalimat_lower = kalimat.lower()
         skor = 3 if index == 0 else (2 if index == 1 else 0)
         for kw in kata_kunci_list:
-            if kw in kalimat_lower: skor += 2
+            if kw in kalimat_lower:
+                skor += 2
         for kw in KATA_POSITIF + KATA_NEGATIF:
-            if kw in kalimat_lower: skor += 1.5
+            if kw in kalimat_lower:
+                skor += 1.5
         skor_kalimat.append((skor, index, kalimat))
     kalimat_terpilih = sorted(skor_kalimat, key=lambda x: x[0], reverse=True)[:max_kalimat]
     kalimat_terpilih_urut = sorted(kalimat_terpilih, key=lambda x: x[1])
     return " ".join([k[2] for k in kalimat_terpilih_urut])
 
+
 def analisa_sentimen(teks):
     teks_lower = teks.lower()
     skor_positif = sum(1 for kata in KATA_POSITIF if kata in teks_lower)
     skor_negatif = sum(1 for kata in KATA_NEGATIF if kata in teks_lower)
-    if skor_positif > skor_negatif: return "POSITIF"
-    elif skor_negatif > skor_positif: return "NEGATIF"
-    else: return "NETRAL"
+    if skor_positif > skor_negatif:
+        return "POSITIF"
+    if skor_negatif > skor_positif:
+        return "NEGATIF"
+    return "NETRAL"
 
-def dapatkan_feed_rss(aturan):
-    rss_asli = aturan.get("rss_asli")
-    if rss_asli:
-        try:
-            response = requests.get(rss_asli, headers=HEADERS, timeout=8, verify=False)
-            if response.status_code == 200:
-                feed = feedparser.parse(response.content)
-                if hasattr(feed, 'entries') and len(feed.entries) > 0:
-                    return feed
-        except Exception:
-            pass
 
-    rss_google = aturan.get("rss_google")
-    if rss_google:
-        try:
-            response = requests.get(rss_google, headers=HEADERS, timeout=8, verify=False)
-            if response.status_code == 200:
-                return feedparser.parse(response.content)
-        except Exception:
-            pass
+# ============================================================
+# CORE: PROCESS SINGLE ENTRY (untuk ThreadPoolExecutor)
+# ============================================================
 
-    return feedparser.parse("")
+def process_entry(
+    entry,
+    aturan: dict,
+    jam_filter: int,
+    aktifkan_deduplikasi: bool,
+    ambang_duplikat: float,
+    daftar_tersimpan: list,
+) -> dict | None:
+    """
+    Proses satu entry RSS sampai menjadi record siap-simpan.
+    Dipanggil paralel via ThreadPoolExecutor.
+    Mengembalikan dict atau None jika di-skip.
+    """
+    judul = entry.get("title", "N/A")
+    link = entry.get("link", "N/A")
+    tanggal = entry.get("published", "") or entry.get("updated", "N/A")
+    deskripsi = entry.get("summary", "") + " " + entry.get("description", "")
 
-def dapatkan_url_asli(url_target):
-    if "news.google.com" in url_target:
-        try:
-            resp = requests.get(url_target, headers=HEADERS, timeout=10, verify=False, allow_redirects=True)
-            return resp.url
-        except Exception:
-            return url_target
-    return url_target
+    # Filter waktu
+    if not apakah_dalam_rentang(tanggal, jam_filter):
+        return None
 
-# --- ATURAN PORTAL GABUNGAN ---
-aturan_portal = {
-    "CNN Indonesia (Ekonomi)": {
-        "rss_asli": "https://www.cnnindonesia.com/ekonomi/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:cnnindonesia.com/ekonomi&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail_text", "butuh_page_all": False
-    },
-    "CNBC Indonesia (Market)": {
-        "rss_asli": "https://www.cnbcindonesia.com/market/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/market&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail_text", "butuh_page_all": False
-    },
-    "CNBC Indonesia (MyMoney)": {
-        "rss_asli": "https://www.cnbcindonesia.com/mymoney/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/mymoney&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail_text", "butuh_page_all": False
-    },
-    "CNBC Indonesia (News)": {
-        "rss_asli": "https://www.cnbcindonesia.com/news/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/news&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail_text", "butuh_page_all": False
-    },
-    "Kontan Utama & Investasi": {
-        "rss_asli": "https://www.kontan.co.id/feed",
-        "rss_google": "https://news.google.com/rss/search?q=site:kontan.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
-    },
-    "Kontan Investasi": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:investasi.kontan.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
-    },
-    "Katadata": {
-        "rss_asli": "https://katadata.co.id/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:katadata.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-body", "butuh_page_all": False
-    },
-    "Bloomberg Technoz": {
-        "rss_asli": "https://www.bloombergtechnoz.com/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:bloombergtechnoz.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-content", "butuh_page_all": False
-    },
-    "Tempo Bisnis": {
-        "rss_asli": "https://rss.tempo.co/bisnis",
-        "rss_google": "https://news.google.com/rss/search?q=site:bisnis.tempo.co&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-konten", "butuh_page_all": False
-    },
-    "ANTARA Ekonomi": {
-        "rss_asli": "https://www.antaranews.com/rss/ekonomi-bisnis.xml",
-        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com/ekonomi&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
-    },
-    "IDX Channel": {
-        "rss_asli": "https://www.idxchannel.com/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:idxchannel.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-text", "butuh_page_all": False
-    },
-    "Detik Finance": {
-        "rss_asli": "https://finance.detik.com/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:finance.detik.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
-    },
-    "Bisnis Indonesia": {
-        "rss_asli": "https://www.bisnis.com/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:bisnis.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "details-content", "butuh_page_all": False
-    },
-    "Bisnis Market": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:market.bisnis.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "details-content", "butuh_page_all": False
-    },
-    "SWA Online": {
-        "rss_asli": "https://swa.co.id/feed",
-        "rss_google": "https://news.google.com/rss/search?q=site:swa.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "entry-content", "butuh_page_all": False
-    },
-    "Bareksa": {
-        "rss_asli": "https://www.bareksa.com/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:bareksa.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "news-content", "butuh_page_all": False
-    },
-    "TrenAsia": {
-        "rss_asli": "https://www.trenasia.com/rss",
-        "rss_google": "https://news.google.com/rss/search?q=site:trenasia.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "content-detail", "butuh_page_all": False
-    },
-    "Warta Ekonomi": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:wartaekonomi.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "read-content", "butuh_page_all": False
-    },
-    "RM.id Ekonomi": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:rm.id+ekonomi+OR+bumn+OR+saham&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "entry-content", "butuh_page_all": False
-    },
-    "IDNFinancials": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:idnfinancials.com/id/news&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "cb", "butuh_page_all": False
-    },
-    "Kompas Money": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:money.kompas.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "read__content", "butuh_page_all": True
-    },
-    "Investor.id (Market & Fin)": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:investor.id+(market+OR+finance+OR+saham)&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "read-content", "butuh_page_all": False
-    },
-    "Investor.id (Macro & Investory)": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:investor.id+(macroeconomy+OR+investory)&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "read-content", "butuh_page_all": False
-    },
-    "MetroTV News": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:metrotvnews.com+OR+site:metrotvnews.com/news&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "container-flex pb-20", "butuh_page_all": False
-    },
-    "tvOne News": {
-        "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=site:tvonenews.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "article", "class": "content-article", "butuh_page_all": False
+    teks_pencocokan = (judul + " " + deskripsi).lower()
+
+    # Filter kata kunci portofolio
+    cocok, trigger_terdeteksi = False, "UMUM"
+    for kunci in kata_kunci_portofolio:
+        if re.search(rf'\b{re.escape(kunci)}\b', teks_pencocokan):
+            cocok, trigger_terdeteksi = True, kunci.upper()
+            break
+    if not cocok:
+        return None
+
+    # Deduplication
+    if aktifkan_deduplikasi and apakah_duplikat(judul, link, daftar_tersimpan, ambang_duplikat):
+        return None
+
+    # Scrape isi artikel (dengan cache & retry internal)
+    hasil = scrape_artikel(entry, aturan)
+    if hasil is None:
+        return None
+
+    isi = hasil.get("isi", "Konten tidak dapat diekstrak.")
+    status_akses = hasil.get("status_akses", "Error")
+
+    # Analisis tambahan
+    sentimen_label = analisa_sentimen(judul + " " + isi)
+    ringkasan_teks = ringkas_teks(isi, kata_kunci_portofolio, max_kalimat=2)
+    kategori_aset = tentukan_kategori_aset(teks_pencocokan)
+    dt_obj = konversi_ke_datetime(tanggal)
+
+    record = {
+        "Sumber": aturan.get("__nama_portal", "N/A"),
+        "Kategori Aset": kategori_aset,
+        "Trigger/Emiten": trigger_terdeteksi,
+        "Sentimen": sentimen_label,
+        "Status Bursa": cek_status_bursa(dt_obj),
+        "Akses": status_akses,
+        "Judul": judul,
+        "Tanggal": tanggal,
+        "dt_sort": dt_obj,
+        "Ringkasan Berita": ringkasan_teks,
+        "Link": link,
+        "Isi Berita": isi,
     }
-}
 
-kata_kunci_portofolio = [kw for sublist in KATEGORI_PORTOFOLIO.values() for kw in sublist]
+    # Catat untuk deduplication (thread-safe dengan append dalam main thread)
+    daftar_tersimpan.append({"link": link, "judul_bersih": bersihkan_judul(judul)})
 
-st.set_page_config(page_title="Radar Investasi Multi", layout="wide", initial_sidebar_state="expanded")
+    return record
+
+
+# ============================================================
+# STREAMLIT UI
+# ============================================================
+
+st.set_page_config(
+    page_title="Radar Investasi Multi",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
     <style>
-        .stApp {
-            background-color: #0d1117;
-        }
+        .stApp { background-color: #0d1117; }
         [data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
             border-right: 1px solid #30363d;
@@ -367,22 +326,13 @@ st.markdown("""
         }
         [data-testid="stSidebarNav"]::before {
             content: "NAVIGASI UTAMA";
-            display: block;
-            margin-left: 20px;
-            margin-bottom: 10px;
-            font-size: 11px;
-            font-weight: 800;
-            color: #8b949e;
-            letter-spacing: 1.2px;
+            display: block; margin-left: 20px; margin-bottom: 10px;
+            font-size: 11px; font-weight: 800; color: #8b949e; letter-spacing: 1.2px;
         }
-        [data-testid="stSidebarNav"] ul {
-            gap: 6px;
-        }
+        [data-testid="stSidebarNav"] ul { gap: 6px; }
         [data-testid="stSidebarNav"] a {
-            border-radius: 8px;
-            padding: 8px 12px;
-            color: #c9d1d9 !important;
-            font-weight: 500;
+            border-radius: 8px; padding: 8px 12px;
+            color: #c9d1d9 !important; font-weight: 500;
             transition: all 0.2s ease-in-out;
         }
         [data-testid="stSidebarNav"] a:hover {
@@ -392,8 +342,7 @@ st.markdown("""
         }
         [data-testid="stSidebarNav"] a[aria-current="page"] {
             background: linear-gradient(135deg, #1f6feb 0%, #238636 100%);
-            color: white !important;
-            font-weight: 600;
+            color: white !important; font-weight: 600;
             box-shadow: 0 3px 8px rgba(31, 111, 235, 0.3);
         }
         div.stExpander {
@@ -411,95 +360,74 @@ st.markdown("""
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .metric-value {
-            font-size: 22px;
-            font-weight: 700;
-            color: #58a6ff;
-            margin-top: 4px;
+            font-size: 22px; font-weight: 700;
+            color: #58a6ff; margin-top: 4px;
         }
         .metric-label {
-            font-size: 11px;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 11px; color: #8b949e;
+            text-transform: uppercase; letter-spacing: 1px;
         }
         .stButton button[kind="primary"] {
             background: linear-gradient(135deg, #1f6feb 0%, #238636 100%);
-            color: white;
-            font-weight: 600;
-            border-radius: 8px;
-            border: none;
+            color: white; font-weight: 600;
+            border-radius: 8px; border: none;
             padding: 0.6rem 1.2rem;
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
         }
-        .stButton button[kind="primary"]:active, 
+        .stButton button[kind="primary"]:active,
         .stButton button[kind="primary"]:focus {
             background: linear-gradient(135deg, #1f6feb 0%, #238636 100%) !important;
             color: white !important;
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.5) !important;
         }
         @media (max-width: 768px) {
-            .header-title {
-                font-size: 1.8rem !important;
-            }
-            .header-card {
-                padding: 1.2rem !important;
-            }
-            .tag-container {
-                flex-wrap: wrap !important;
-                gap: 6px !important;
-            }
-            .metric-card {
-                margin-bottom: 10px !important;
-            }
+            .header-title { font-size: 1.8rem !important; }
+            .header-card { padding: 1.2rem !important; }
+            .tag-container { flex-wrap: wrap !important; gap: 6px !important; }
+            .metric-card { margin-bottom: 10px !important; }
         }
     </style>
 """, unsafe_allow_html=True)
 
-if 'df_hasil' not in st.session_state: st.session_state.df_hasil = None
-if 'duration_scan' not in st.session_state: st.session_state.duration_scan = 0
-if 'skor_indeks_val' not in st.session_state: st.session_state.skor_indeks_val = 50.0
+# Session state
+if 'df_hasil' not in st.session_state:
+    st.session_state.df_hasil = None
+if 'duration_scan' not in st.session_state:
+    st.session_state.duration_scan = 0
+if 'skor_indeks_val' not in st.session_state:
+    st.session_state.skor_indeks_val = 50.0
+if 'scan_stats' not in st.session_state:
+    st.session_state.scan_stats = {"paralel_workers": 5, "cache_hits": 0}
 
+# Header
 st.markdown("""
     <style>
         .header-card {
             background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
-            padding: 2rem;
-            border-radius: 16px;
+            padding: 2rem; border-radius: 16px;
             border: 1px solid #30363d;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             margin-bottom: 2rem;
         }
         .header-title {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: #ffffff;
-            margin: 0;
+            font-size: 2.5rem; font-weight: 800;
+            color: #ffffff; margin: 0;
             background: linear-gradient(to right, #ffffff, #8b949e);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         .header-subtitle {
-            color: #8b949e;
-            font-size: 1.1rem;
-            margin-top: 0.5rem;
-            font-weight: 400;
+            color: #8b949e; font-size: 1.1rem;
+            margin-top: 0.5rem; font-weight: 400;
         }
-        .tag-container {
-            display: flex;
-            gap: 10px;
-            margin-top: 1.5rem;
-        }
+        .tag-container { display: flex; gap: 10px; margin-top: 1.5rem; }
         .tag {
-            background: rgba(88, 166, 255, 0.1);
-            color: #58a6ff;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
+            background: rgba(88, 166, 255, 0.1); color: #58a6ff;
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 0.85rem; font-weight: 600;
             border: 1px solid rgba(88, 166, 255, 0.2);
         }
     </style>
-    
     <div class="header-card">
         <h1 class="header-title">Radar Portofolio 📡</h1>
         <p class="header-subtitle">Terminal monitoring real-time untuk aset dan sentimen pasar strategis.</p>
@@ -513,6 +441,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# Metric cards
 if st.session_state.df_hasil is not None:
     df_mem = st.session_state.df_hasil
     tot_berita = len(df_mem)
@@ -521,49 +450,75 @@ if st.session_state.df_hasil is not None:
     dur_scan = st.session_state.duration_scan
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f'<div class="metric-card"><div class="metric-label">Total Berita</div><div class="metric-value">{tot_berita} Artikel</div></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="metric-card"><div class="metric-label">Positif</div><div class="metric-value" style="color: #2ea043;">{tot_pos} Berita</div></div>', unsafe_allow_html=True)
-    c3.markdown(f'<div class="metric-card"><div class="metric-label">Negatif</div><div class="metric-value" style="color: #f85149;">{tot_neg} Berita</div></div>', unsafe_allow_html=True)
-    c4.markdown(f'<div class="metric-card"><div class="metric-label">Waktu Scan</div><div class="metric-value">{dur_scan} Detik</div></div>', unsafe_allow_html=True)
+    c1.markdown(
+        f'<div class="metric-card"><div class="metric-label">Total Berita</div>'
+        f'<div class="metric-value">{tot_berita} Artikel</div></div>',
+        unsafe_allow_html=True
+    )
+    c2.markdown(
+        f'<div class="metric-card"><div class="metric-label">Positif</div>'
+        f'<div class="metric-value" style="color: #2ea043;">{tot_pos} Berita</div></div>',
+        unsafe_allow_html=True
+    )
+    c3.markdown(
+        f'<div class="metric-card"><div class="metric-label">Negatif</div>'
+        f'<div class="metric-value" style="color: #f85149;">{tot_neg} Berita</div></div>',
+        unsafe_allow_html=True
+    )
+    c4.markdown(
+        f'<div class="metric-card"><div class="metric-label">Waktu Scan</div>'
+        f'<div class="metric-value">{dur_scan} Detik</div></div>',
+        unsafe_allow_html=True
+    )
     st.markdown("<br>", unsafe_allow_html=True)
 
+# Info panel
 st.markdown("""
-    <div style="background: rgba(31, 111, 235, 0.05); border-left: 4px solid #1f6feb; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+    <div style="background: rgba(31, 111, 235, 0.05); border-left: 4px solid #1f6feb;
+         padding: 15px; border-radius: 4px; margin-bottom: 20px;">
         <p style="margin: 0; font-size: 1rem; color: #c9d1d9;">
-            <strong style="color: #58a6ff;">💡 Siap Memindai?</strong> 
-            Sesuaikan parameter di <strong>Panel Pengaturan</strong> (bawah), lalu tekan tombol <strong>Mulai Pemindaian</strong> untuk mendapatkan insight pasar terkini.
+            <strong style="color: #58a6ff;">💡 Siap Memindai?</strong>
+            Sesuaikan parameter di <strong>Panel Pengaturan</strong> (bawah),
+            lalu tekan tombol <strong>Mulai Pemindaian</strong> untuk mendapatkan insight pasar terkini.
         </p>
     </div>
 """, unsafe_allow_html=True)
 
+
+# ============================================================
+# KONFIGURASI PANEL
+# ============================================================
+
 with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
-    tab1, tab2 = st.tabs(["🗄️ Sumber Berita", "🔔 Notifikasi & Opsi"])
-    
+    tab1, tab2, tab3 = st.tabs(["🗄️ Sumber Berita", "🔔 Notifikasi & Opsi", "⚡ Performa"])
+
     with tab1:
         st.markdown("### Pilih Kanal Berita")
         semua_portal_keys = list(aturan_portal.keys())
         pilih_semua = st.checkbox("Pilih Semua Portal", value=True)
         portal_terpilih = st.multiselect(
-            "Filter Kanal:", 
-            options=semua_portal_keys, 
+            "Filter Kanal:",
+            options=semua_portal_keys,
             default=semua_portal_keys if pilih_semua else []
         )
 
         pilihan_rentang = st.select_slider(
             "Rentang Waktu Pemindaian:",
-            options=["3 Jam Terakhir", "6 Jam Terakhir", "12 Jam Terakhir", "24 Jam Terakhir (1 Hari)", "3 Hari Terakhir", "Semua Berita (Tanpa Batas)"],
+            options=["3 Jam Terakhir", "6 Jam Terakhir", "12 Jam Terakhir",
+                     "24 Jam Terakhir (1 Hari)", "3 Hari Terakhir",
+                     "Semua Berita (Tanpa Batas)"],
             value="24 Jam Terakhir (1 Hari)"
         )
         map_jam = {
-            "3 Jam Terakhir": 3, 
-            "6 Jam Terakhir": 6, 
+            "3 Jam Terakhir": 3,
+            "6 Jam Terakhir": 6,
             "12 Jam Terakhir": 12,
-            "24 Jam Terakhir (1 Hari)": 24, 
-            "3 Hari Terakhir": 72, 
-            "Semua Berita (Tanpa Batas)": 87600
+            "24 Jam Terakhir (1 Hari)": 24,
+            "3 Hari Terakhir": 72,
+            "Semua Berita (Tanpa Batas)": 87600,
         }
         jam_filter = map_jam[pilihan_rentang]
-        
+
     with tab2:
         st.markdown("### Parameter & Bot")
         col_c1, col_c2 = st.columns(2)
@@ -571,7 +526,7 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
             aktifkan_deduplikasi = st.toggle("Anti-Duplikat", value=True)
         with col_c2:
             ambang_duplikat = st.slider("Ambang Kemiripan:", 0.5, 0.95, 0.75, 0.05)
-            
+
         st.markdown("---")
         st.markdown("**Integrasi Telegram**")
         col_tg1, col_tg2 = st.columns(2)
@@ -580,9 +535,34 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
         with col_tg2:
             chat_id = st.text_input("Chat ID:", placeholder="Masukkan chat ID...", value="")
 
+    with tab3:
+        st.markdown("### ⚡ Optimasi Performa")
+        max_workers = st.slider(
+            "Worker Paralel:",
+            min_value=1, max_value=10, value=5,
+            help="Jumlah thread paralel. Terlalu tinggi bisa kena rate-limit. Rekomendasi: 3-7."
+        )
+        max_artikel_per_portal = st.slider(
+            "Maks Artikel per Portal:",
+            min_value=5, max_value=30, value=15,
+            help="Batas artikel yang di-scrape per portal."
+        )
+
+        st.markdown("---")
+        st.markdown("**📊 Status Cache**")
+        cache_stats = get_cache_stats()
+        col_cs1, col_cs2, col_cs3 = st.columns(3)
+        col_cs1.metric("Total Entry", cache_stats["total"])
+        col_cs2.metric("Aktif", cache_stats["active"], delta=f"-{cache_stats['expired']} expired")
+        col_cs3.metric("Ukuran DB", f"{cache_stats['size_mb']} MB")
+
+        if st.button("🧹 Bersihkan Cache Expired"):
+            cleared = cache_clear_expired()
+            st.success(f"{cleared} entry expired dihapus.")
+
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Tombol Berdampingan: Mulai & Stop
+# Tombol Aksi
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
     tombol_scan = st.button("🚀 Mulai Pemindaian Radar Sekarang!", type="primary", use_container_width=True)
@@ -598,141 +578,129 @@ if tombol_stop:
     else:
         st.warning("Belum ada data yang terkumpul untuk ditampilkan.")
 
+
+# ============================================================
+# EKSEKUSI SCAN (PARALEL)
+# ============================================================
+
 if tombol_scan:
     if len(portal_terpilih) == 0:
         st.warning("Pilih minimal satu portal berita terlebih dahulu.")
     else:
-        kumpulan_data_global, daftar_tersimpan = [], []
+        kumpulan_data_global: list[dict] = []
+        daftar_tersimpan: list[dict] = []
         timer_container = st.empty()
         progress_bar = st.progress(0)
+        status_text = st.empty()
+
         start_time = time.time()
         total_portal = len(portal_terpilih)
-        
-        max_artikel_per_portal = 15  # Pembatasan agar tidak terlalu menumpuk / ngestuck
-        
+
+        cache_hits_awal = get_cache_stats()
+        cache_total_awal = cache_hits_awal["total"]
+
+        # Loop utama: tiap portal di-fetch secara paralel di dalamnya
         for idx, nama_portal in enumerate(portal_terpilih):
             elapsed_time = round(time.time() - start_time, 1)
             timer_container.markdown(f"""
-                <div style="background: rgba(31, 111, 235, 0.1); border: 1px solid #1f6feb; padding: 10px 15px; border-radius: 8px; color: #c9d1d9; display: flex; justify-content: space-between; align-items: center;">
-                    <span>📡 Sedang Memindai: <strong style="color: #58a6ff;">{nama_portal}</strong> <span style="color: #8b949e; font-size: 0.9em;">({idx+1}/{total_portal})</span></span>
+                <div style="background: rgba(31, 111, 235, 0.1); border: 1px solid #1f6feb;
+                     padding: 10px 15px; border-radius: 8px; color: #c9d1d9;
+                     display: flex; justify-content: space-between; align-items: center;">
+                    <span>📡 Sedang Memindai: <strong style="color: #58a6ff;">{nama_portal}</strong>
+                    <span style="color: #8b949e; font-size: 0.9em;">({idx+1}/{total_portal})</span></span>
                     <span style="font-family: monospace; color: #3fb950; font-weight: bold;">⏱️ {elapsed_time}s</span>
                 </div>
             """, unsafe_allow_html=True)
-            
-            aturan = aturan_portal[nama_portal]
+
+            aturan = dict(aturan_portal[nama_portal])  # copy agar tidak modify global
+            aturan["__nama_portal"] = nama_portal
+
             feed = dapatkan_feed_rss(aturan)
-            if feed and hasattr(feed, 'entries') and len(feed.entries) > 0:
-                count_artikel = 0
-                for entry in feed.entries:
-                    if count_artikel >= max_artikel_per_portal:
-                        break
-                        
-                    judul = entry.get('title', 'N/A')
-                    link = entry.get('link', 'N/A')
-                    tanggal = entry.get('published', '') or entry.get('updated', 'N/A')
-                    deskripsi = entry.get('summary', '') + " " + entry.get('description', '')
-                    
-                    if not apakah_dalam_rentang(tanggal, jam_filter): 
-                        continue
-                        
-                    teks_pencocokan = (judul + " " + deskripsi).lower()
-                    
-                    cocok, trigger_terdeteksi = False, "UMUM"
-                    for kunci in kata_kunci_portofolio:
-                        if re.search(rf'\b{re.escape(kunci)}\b', teks_pencocokan):
-                            cocok, trigger_terdeteksi = True, kunci.upper()
-                            break
-                    if not cocok: 
-                        continue
-                    
-                    is_dedup_active = locals().get('aktifkan_deduplikasi', True)
-                    similarity_threshold = locals().get('ambang_duplikat', 0.75)
-                    
-                    if is_dedup_active and apakah_duplikat(judul, link, daftar_tersimpan, similarity_threshold): 
-                        continue
-                    
-                    # Mekanisme proteksi waktu/skip jika proses scraping terlalu lama / hang
-                    waktu_mulai_scraping = time.time()
+            if not feed or not hasattr(feed, "entries") or len(feed.entries) == 0:
+                progress_bar.progress((idx + 1) / total_portal)
+                continue
+
+            # Batasi jumlah entry yang akan diproses
+            target_entries = list(feed.entries)[:max_artikel_per_portal]
+            session = get_http_session()
+
+            # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal
+            batch_size = max_workers
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit semua entry
+                future_to_entry = {
+                    executor.submit(
+                        process_entry,
+                        entry, aturan, jam_filter,
+                        aktifkan_deduplikasi, ambang_duplikat,
+                        daftar_tersimpan,  # shared mutable (append-only, thread-safe)
+                    ): entry
+                    for entry in target_entries
+                }
+
+                # Kumpulkan hasil dengan proteksi timeout
+                for future in as_completed(future_to_entry, timeout=60):
                     try:
-                        url_asli = dapatkan_url_asli(link)
-                        link_target = url_asli + "?page=all" if aturan["butuh_page_all"] else url_asli
-                        response = requests.get(link_target, headers=HEADERS, timeout=6, verify=False, allow_redirects=True)
-                        
-                        if time.time() - waktu_mulai_scraping > 7:
-                            continue
-                            
-                        if response.status_code == 200:
-                            soup = BeautifulSoup(response.text, 'html.parser')
-                            html_text = response.text.lower()
-                            if any(p in html_text for p in ["paywall", "berlangganan", "artikel premium", "sumber terpercaya", "konten berbayar"]):
-                                if len(soup.find_all('p')) < 3:
-                                    isi, status_akses = "Artikel Terkunci / Berbayar (Paywall)", "Paywall"
-                                else:
-                                    artikel_body = soup.find(aturan["tag"], class_=aturan["class"])
-                                    if artikel_body:
-                                        paragraf = artikel_body.find_all('p')
-                                        teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 20]
-                                        isi = "\n\n".join(teks_paragraf) if teks_paragraf else "Konten tidak dapat diekstrak."
-                                        status_akses = "Penuh" if teks_paragraf else "Terbatas"
-                                    else:
-                                        semua_p = soup.find_all('p')
-                                        teks_universal = [p.text.strip() for p in semua_p if len(p.text.strip()) > 30 and not re.search(r'(cookie|privacy|baca juga)', p.text.strip(), re.IGNORECASE)]
-                                        isi = "\n\n".join(teks_universal) if teks_universal else "Konten tidak dapat diekstrak."
-                                        status_akses = "Penuh" if teks_universal else "Terbatas"
-                            else:
-                                artikel_body = soup.find(aturan["tag"], class_=aturan["class"])
-                                if artikel_body:
-                                    paragraf = artikel_body.find_all('p')
-                                    teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 20]
-                                    if teks_paragraf: 
-                                        isi, status_akses = "\n\n".join(teks_paragraf), "Penuh"
-                                    else:
-                                        semua_p = soup.find_all('p')
-                                        teks_universal = [p.text.strip() for p in semua_p if len(p.text.strip()) > 30 and not re.search(r'(cookie|privacy|baca juga)', p.text.strip(), re.IGNORECASE)]
-                                        isi = "\n\n".join(teks_universal) if teks_universal else "Konten tidak dapat diekstrak."
-                                        status_akses = "Penuh" if teks_universal else "Terbatas"
-                                else:
-                                    semua_p = soup.find_all('p')
-                                    teks_universal = [p.text.strip() for p in semua_p if len(p.text.strip()) > 30 and not re.search(r'(cookie|privacy|baca juga)', p.text.strip(), re.IGNORECASE)]
-                                    isi = "\n\n".join(teks_universal) if teks_universal else "Konten tidak dapat diekstrak."
-                                    status_akses = "Penuh" if teks_universal else "Terbatas"
-                        else:
-                            isi, status_akses = f"Gagal akses. Status: {response.status_code}", "Error"
+                        record = future.result(timeout=15)
+                        if record is not None:
+                            kumpulan_data_global.append(record)
                     except Exception:
-                        count_artikel += 1
                         continue
 
-                    sentimen_label = analisa_sentimen(judul + " " + isi)
-                    ringkasan_teks = ringkas_teks(isi, kata_kunci_portofolio, max_kalimat=2)
-                    kategori_aset = tentukan_kategori_aset(teks_pencocokan)
-                    dt_obj = konversi_ke_datetime(tanggal)
-                    
-                    kumpulan_data_global.append({
-                        "Sumber": nama_portal, "Kategori Aset": kategori_aset, "Trigger/Emiten": trigger_terdeteksi,
-                        "Sentimen": sentimen_label, "Status Bursa": cek_status_bursa(dt_obj), "Akses": status_akses,
-                        "Judul": judul, "Tanggal": tanggal, "dt_sort": dt_obj, "Ringkasan Berita": ringkasan_teks,
-                        "Link": link, "Isi Berita": isi
-                    })
-                    daftar_tersimpan.append({"link": link, "judul_bersih": bersihkan_judul(judul)})
-                    count_artikel += 1
-                    
+            # Update progress
             progress_bar.progress((idx + 1) / total_portal)
-            
-            # Simpan incremental secara berkala per portal selesai
+            status_text.text(
+                f"✅ {nama_portal}: {len(target_entries)} entry diproses | "
+                f"Total terkumpul: {len(kumpulan_data_global)} berita"
+            )
+
+            # Simpan incremental
             if kumpulan_data_global:
-                st.session_state.df_hasil = pd.DataFrame(kumpulan_data_global).sort_values(by='dt_sort', ascending=False).reset_index(drop=True)
-        
+                st.session_state.df_hasil = (
+                    pd.DataFrame(kumpulan_data_global)
+                    .sort_values(by="dt_sort", ascending=False)
+                    .reset_index(drop=True)
+                )
+
+            # Memory cleanup periodik
+            if (idx + 1) % 5 == 0:
+                gc.collect()
+
+        # Selesai
         duration = round(time.time() - start_time, 2)
         timer_container.empty()
-        
+        progress_bar.empty()
+        status_text.empty()
+
+        # Hitung cache hit selama scan
+        cache_stats_akhir = get_cache_stats()
+        cache_hits_scan = cache_stats_akhir["total"] - cache_total_awal
+
         if kumpulan_data_global:
-            df = pd.DataFrame(kumpulan_data_global).sort_values(by='dt_sort', ascending=False).reset_index(drop=True)
+            df = (
+                pd.DataFrame(kumpulan_data_global)
+                .sort_values(by="dt_sort", ascending=False)
+                .reset_index(drop=True)
+            )
             st.session_state.df_hasil = df
             st.session_state.duration_scan = duration
-            n_pos = len(df[df['Sentimen'] == 'POSITIF'])
-            n_neg = len(df[df['Sentimen'] == 'NEGATIF'])
+            st.session_state.scan_stats = {
+                "paralel_workers": max_workers,
+                "cache_hits": max(0, cache_hits_scan),
+            }
+
+            n_pos = len(df[df["Sentimen"] == "POSITIF"])
+            n_neg = len(df[df["Sentimen"] == "NEGATIF"])
             non_netral = n_pos + n_neg
-            st.session_state.skor_indeks_val = round((n_pos / non_netral) * 100, 1) if non_netral > 0 else 50.0
-            st.success(f"Radar Selesai! Menemukan {len(df)} berita unik dalam {duration} detik.")
+            st.session_state.skor_indeks_val = (
+                round((n_pos / non_netral) * 100, 1) if non_netral > 0 else 50.0
+            )
+            st.success(
+                f"🎯 Radar Selesai! Menemukan {len(df)} berita unik dalam {duration} detik "
+                f"(workers={max_workers}, cache entries baru={max(0, cache_hits_scan)})."
+            )
         else:
             st.warning("Tidak ada berita yang sesuai dengan kriteria waktu & kata kunci portofolio.")
+
+        # Final cleanup
+        gc.collect()
