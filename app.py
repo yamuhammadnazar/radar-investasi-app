@@ -190,7 +190,6 @@ def analisa_sentimen(teks):
     elif skor_negatif > skor_positif: return "NEGATIF"
     else: return "NETRAL"
 
-# --- FUNGSI GABUNGAN (RSS ASLI + FALLBACK GOOGLE NEWS) ---
 def dapatkan_feed_rss(aturan):
     rss_asli = aturan.get("rss_asli")
     if rss_asli:
@@ -223,31 +222,7 @@ def dapatkan_url_asli(url_target):
             return url_target
     return url_target
 
-def ambil_isi_berita(url_input, tag_html, class_html, butuh_page_all):
-    try:
-        url_asli = dapatkan_url_asli(url_input)
-        link_target = url_asli + "?page=all" if butuh_page_all else url_asli
-        response = requests.get(link_target, headers=HEADERS, timeout=12, verify=False, allow_redirects=True)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            html_text = response.text.lower()
-            if any(p in html_text for p in ["paywall", "berlangganan", "artikel premium", "sumber terpercaya", "konten berbayar"]):
-                if len(soup.find_all('p')) < 3:
-                    return "Artikel Terkunci / Berbayar (Paywall)", "Paywall"
-            artikel_body = soup.find(tag_html, class_=class_html)
-            if artikel_body:
-                paragraf = artikel_body.find_all('p')
-                teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 20]
-                if teks_paragraf: return "\n\n".join(teks_paragraf), "Penuh"
-            semua_p = soup.find_all('p')
-            teks_universal = [p.text.strip() for p in semua_p if len(p.text.strip()) > 30 and not re.search(r'(cookie|privacy|baca juga)', p.text.strip(), re.IGNORECASE)]
-            if teks_universal: return "\n\n".join(teks_universal), "Penuh"
-            return "Konten tidak dapat diekstrak.", "Terbatas"
-        return f"Gagal akses. Status: {response.status_code}", "Error"
-    except Exception as e:
-        return f"Error: {e}", "Error"
-
-# --- ATURAN PORTAL GABUNGAN (TERMASUK SUMBER TAMBAHAN) ---
+# --- ATURAN PORTAL GABUNGAN ---
 aturan_portal = {
     "CNN Indonesia (Ekonomi)": {
         "rss_asli": "https://www.cnnindonesia.com/ekonomi/rss",
@@ -364,7 +339,6 @@ aturan_portal = {
         "rss_google": "https://news.google.com/rss/search?q=site:investor.id+(macroeconomy+OR+investory)&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "read-content", "butuh_page_all": False
     },
-
     "MetroTV News": {
         "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:metrotvnews.com+OR+site:metrotvnews.com/news&hl=id&gl=ID&ceid=ID:id",
@@ -375,7 +349,6 @@ aturan_portal = {
         "rss_google": "https://news.google.com/rss/search?q=site:tvonenews.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "article", "class": "content-article", "butuh_page_all": False
     }
-    
 }
 
 kata_kunci_portofolio = [kw for sublist in KATEGORI_PORTOFOLIO.values() for kw in sublist]
@@ -464,7 +437,6 @@ st.markdown("""
             color: white !important;
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.5) !important;
         }
-        
         @media (max-width: 768px) {
             .header-title {
                 font-size: 1.8rem !important;
@@ -610,11 +582,21 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+# Tombol Berdampingan: Mulai & Stop
+col_btn1, col_btn2 = st.columns(2)
+with col_btn1:
+    tombol_scan = st.button("🚀 Mulai Pemindaian Radar Sekarang!", type="primary", use_container_width=True)
 with col_btn2:
-    tombol_scan = st.button("Mulai Pemindaian Radar Sekarang!", type="primary", use_container_width=True)
+    tombol_stop = st.button("🛑 Stop & Tampilkan Hasil Sementara", use_container_width=True)
 
 st.markdown("---")
+
+if tombol_stop:
+    if st.session_state.df_hasil is not None:
+        st.success("Pemindaian dihentikan. Menampilkan data yang sudah berhasil terkumpul sejauh ini.")
+        st.rerun()
+    else:
+        st.warning("Belum ada data yang terkumpul untuk ditampilkan.")
 
 if tombol_scan:
     if len(portal_terpilih) == 0:
@@ -625,6 +607,8 @@ if tombol_scan:
         progress_bar = st.progress(0)
         start_time = time.time()
         total_portal = len(portal_terpilih)
+        
+        max_artikel_per_portal = 15  # Pembatasan agar tidak terlalu menumpuk / ngestuck
         
         for idx, nama_portal in enumerate(portal_terpilih):
             elapsed_time = round(time.time() - start_time, 1)
@@ -638,13 +622,19 @@ if tombol_scan:
             aturan = aturan_portal[nama_portal]
             feed = dapatkan_feed_rss(aturan)
             if feed and hasattr(feed, 'entries') and len(feed.entries) > 0:
+                count_artikel = 0
                 for entry in feed.entries:
+                    if count_artikel >= max_artikel_per_portal:
+                        break
+                        
                     judul = entry.get('title', 'N/A')
                     link = entry.get('link', 'N/A')
                     tanggal = entry.get('published', '') or entry.get('updated', 'N/A')
                     deskripsi = entry.get('summary', '') + " " + entry.get('description', '')
                     
-                    if not apakah_dalam_rentang(tanggal, jam_filter): continue
+                    if not apakah_dalam_rentang(tanggal, jam_filter): 
+                        continue
+                        
                     teks_pencocokan = (judul + " " + deskripsi).lower()
                     
                     cocok, trigger_terdeteksi = False, "UMUM"
@@ -652,14 +642,66 @@ if tombol_scan:
                         if re.search(rf'\b{re.escape(kunci)}\b', teks_pencocokan):
                             cocok, trigger_terdeteksi = True, kunci.upper()
                             break
-                    if not cocok: continue
+                    if not cocok: 
+                        continue
                     
                     is_dedup_active = locals().get('aktifkan_deduplikasi', True)
                     similarity_threshold = locals().get('ambang_duplikat', 0.75)
                     
-                    if is_dedup_active and apakah_duplikat(judul, link, daftar_tersimpan, similarity_threshold): continue
+                    if is_dedup_active and apakah_duplikat(judul, link, daftar_tersimpan, similarity_threshold): 
+                        continue
                     
-                    isi, status_akses = ambil_isi_berita(link, aturan["tag"], aturan["class"], aturan["butuh_page_all"])
+                    # Mekanisme proteksi waktu/skip jika proses scraping terlalu lama / hang
+                    waktu_mulai_scraping = time.time()
+                    try:
+                        url_asli = dapatkan_url_asli(link)
+                        link_target = url_asli + "?page=all" if aturan["butuh_page_all"] else url_asli
+                        response = requests.get(link_target, headers=HEADERS, timeout=6, verify=False, allow_redirects=True)
+                        
+                        if time.time() - waktu_mulai_scraping > 7:
+                            continue
+                            
+                        if response.status_code == 200:
+                            soup = BeautifulSoup(response.text, 'html.parser')
+                            html_text = response.text.lower()
+                            if any(p in html_text for p in ["paywall", "berlangganan", "artikel premium", "sumber terpercaya", "konten berbayar"]):
+                                if len(soup.find_all('p')) < 3:
+                                    isi, status_akses = "Artikel Terkunci / Berbayar (Paywall)", "Paywall"
+                                else:
+                                    artikel_body = soup.find(aturan["tag"], class_=aturan["class"])
+                                    if artikel_body:
+                                        paragraf = artikel_body.find_all('p')
+                                        teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 20]
+                                        isi = "\n\n".join(teks_paragraf) if teks_paragraf else "Konten tidak dapat diekstrak."
+                                        status_akses = "Penuh" if teks_paragraf else "Terbatas"
+                                    else:
+                                        semua_p = soup.find_all('p')
+                                        teks_universal = [p.text.strip() for p in semua_p if len(p.text.strip()) > 30 and not re.search(r'(cookie|privacy|baca juga)', p.text.strip(), re.IGNORECASE)]
+                                        isi = "\n\n".join(teks_universal) if teks_universal else "Konten tidak dapat diekstrak."
+                                        status_akses = "Penuh" if teks_universal else "Terbatas"
+                            else:
+                                artikel_body = soup.find(aturan["tag"], class_=aturan["class"])
+                                if artikel_body:
+                                    paragraf = artikel_body.find_all('p')
+                                    teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 20]
+                                    if teks_paragraf: 
+                                        isi, status_akses = "\n\n".join(teks_paragraf), "Penuh"
+                                    else:
+                                        semua_p = soup.find_all('p')
+                                        teks_universal = [p.text.strip() for p in semua_p if len(p.text.strip()) > 30 and not re.search(r'(cookie|privacy|baca juga)', p.text.strip(), re.IGNORECASE)]
+                                        isi = "\n\n".join(teks_universal) if teks_universal else "Konten tidak dapat diekstrak."
+                                        status_akses = "Penuh" if teks_universal else "Terbatas"
+                                else:
+                                    semua_p = soup.find_all('p')
+                                    teks_universal = [p.text.strip() for p in semua_p if len(p.text.strip()) > 30 and not re.search(r'(cookie|privacy|baca juga)', p.text.strip(), re.IGNORECASE)]
+                                    isi = "\n\n".join(teks_universal) if teks_universal else "Konten tidak dapat diekstrak."
+                                    status_akses = "Penuh" if teks_universal else "Terbatas"
+                        else:
+                            isi, status_akses = f"Gagal akses. Status: {response.status_code}", "Error"
+                    except Exception:
+                        count_artikel += 1
+                        continue
+
                     sentimen_label = analisa_sentimen(judul + " " + isi)
                     ringkasan_teks = ringkas_teks(isi, kata_kunci_portofolio, max_kalimat=2)
                     kategori_aset = tentukan_kategori_aset(teks_pencocokan)
@@ -672,8 +714,13 @@ if tombol_scan:
                         "Link": link, "Isi Berita": isi
                     })
                     daftar_tersimpan.append({"link": link, "judul_bersih": bersihkan_judul(judul)})
-                    time.sleep(0.1)
+                    count_artikel += 1
+                    
             progress_bar.progress((idx + 1) / total_portal)
+            
+            # Simpan incremental secara berkala per portal selesai
+            if kumpulan_data_global:
+                st.session_state.df_hasil = pd.DataFrame(kumpulan_data_global).sort_values(by='dt_sort', ascending=False).reset_index(drop=True)
         
         duration = round(time.time() - start_time, 2)
         timer_container.empty()
@@ -688,5 +735,4 @@ if tombol_scan:
             st.session_state.skor_indeks_val = round((n_pos / non_netral) * 100, 1) if non_netral > 0 else 50.0
             st.success(f"Radar Selesai! Menemukan {len(df)} berita unik dalam {duration} detik.")
         else:
-            st.session_state.df_hasil = None
             st.warning("Tidak ada berita yang sesuai dengan kriteria waktu & kata kunci portofolio.")
