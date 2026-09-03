@@ -80,9 +80,11 @@ KATEGORI_PORTOFOLIO = {
         "majoris pasar uang syariah", "mandiri invasta dana syariah",
         "sucorinvest equity fund", "pasar uang syariah", "sukuk",
         "sbsn", "obligasi syariah", "reksadana saham", "reksadana obligasi"
+        "majoris sukuk negara", "reksadana pasar uang", "reksadana campuran"
     ],
     "EMAS": [
-        "emas", "gold", "xau", "xau/usd", "harga emas", "emas pegadaian", "emas antam"
+        "emas", "gold", "xau", "xau/usd", "harga emas", "emas pegadaian", "emas antam", "Pegadaian", 
+        "logam mulia", "LM Antam", "LM Pegadaian"
     ],
     "KOMODITAS": [
         "harga batu bara", "hba", "coal price", "harga minyak", "oil price"
@@ -90,7 +92,8 @@ KATEGORI_PORTOFOLIO = {
     "MAKRO_INDONESIA": [
         "bi rate", "bank indonesia", "inflasi indonesia", "rupiah", "usd/idr",
         "gdp indonesia", "pertumbuhan ekonomi", "apbn", "yield obligasi",
-        "ihsg", "foreign flow", "net buy asing", "net sell asing"
+        "ihsg", "foreign flow", "net buy asing", "net sell asing","Harga pangan", "inflasi",
+        "defisit neraca perdagangan", "ekspor-impor", "neraca perdagangan",
     ],
     "MAKRO_GLOBAL": [
         "federal reserve", "fed rate", "us cpi", "us pce", "us nfp",
@@ -99,11 +102,11 @@ KATEGORI_PORTOFOLIO = {
     "REGULASI": [
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
-        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN"
+        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konsitusi"
     ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
-        "Indeks", "Bencana", "Anime"
+        "Indeks", "Bencana", "Anime", "Game", 
     ]
 }
 
