@@ -11,7 +11,7 @@ import sqlite3
 import time
 import hashlib
 import json
-from threading import Lock as _Lock
+from threading import Lock as _Lock, local as _local
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "radar_cache.db")
 CACHE_LOCK = _Lock()
@@ -40,6 +40,30 @@ def init_cache_db() -> None:
             conn.close()
 
 
+# ============================================================
+# THREAD-LOCAL CONNECTION POOL
+# ============================================================
+# Setiap thread (termasuk thread dari ThreadPoolExecutor) memiliki
+# koneksi SQLite sendiri. Menghindari overhead connect/disconnect
+# berulang yang sangat terasa saat scraping paralel 100+ artikel.
+_thread_local = _local()
+
+
+def _get_conn() -> sqlite3.Connection:
+    """Ambil koneksi SQLite milik thread ini (lazy create)."""
+    conn = getattr(_thread_local, "conn", None)
+    if conn is None:
+        conn = sqlite3.connect(
+            DB_PATH,
+            timeout=10.0,
+            check_same_thread=False,  # setiap thread punya instance sendiri
+        )
+        conn.execute("PRAGMA journal_mode=WAL")  # tulis-bersamaan (parallel) lebih cepat
+        conn.execute("PRAGMA synchronous=NORMAL")  # keseimbangan performa & durability
+        _thread_local.conn = conn
+    return conn
+
+
 def _make_key(prefix: str, identifier: str) -> str:
     """Buat key cache yang aman (hash SHA256)."""
     raw = f"{prefix}:{identifier}".encode("utf-8")
@@ -56,14 +80,10 @@ def cache_get(prefix: str, identifier: str):
     try:
         key = _make_key(prefix, identifier)
         now = time.time()
-        with CACHE_LOCK:
-            conn = sqlite3.connect(DB_PATH)
-            try:
-                row = conn.execute(
-                    "SELECT value, expires_at FROM cache WHERE key = ?", (key,)
-                ).fetchone()
-            finally:
-                conn.close()
+        conn = _get_conn()
+        row = conn.execute(
+            "SELECT value, expires_at FROM cache WHERE key = ?", (key,)
+        ).fetchone()
 
         if row is None:
             return None
@@ -88,19 +108,20 @@ def cache_set(prefix: str, identifier: str, value, ttl: int = DEFAULT_FEED_TTL) 
         expires_at = now + ttl
         blob = json.dumps(value, ensure_ascii=False).encode("utf-8")
 
+        conn = _get_conn()
         with CACHE_LOCK:
-            conn = sqlite3.connect(DB_PATH)
-            try:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO cache (key, value, expires_at, created_at)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (key, blob, expires_at, now),
-                )
-                conn.commit()
-            finally:
-                conn.close()
+            # Hanya menyimpan created_at pertama kali; tidak di-reset tiap update
+            conn.execute(
+                """
+                INSERT INTO cache (key, value, expires_at, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value=excluded.value,
+                    expires_at=excluded.expires_at
+                """,
+                (key, blob, expires_at, now),
+            )
+            conn.commit()
         return True
     except Exception:
         return False
@@ -109,14 +130,11 @@ def cache_set(prefix: str, identifier: str, value, ttl: int = DEFAULT_FEED_TTL) 
 def cache_clear_expired() -> int:
     """Bersihkan entry yang sudah expired. Return jumlah yang dihapus."""
     try:
+        conn = _get_conn()
         with CACHE_LOCK:
-            conn = sqlite3.connect(DB_PATH)
-            try:
-                cur = conn.execute("DELETE FROM cache WHERE expires_at < ?", (time.time(),))
-                conn.commit()
-                return cur.rowcount
-            finally:
-                conn.close()
+            cur = conn.execute("DELETE FROM cache WHERE expires_at < ?", (time.time(),))
+            conn.commit()
+            return cur.rowcount
     except Exception:
         return 0
 
@@ -124,24 +142,19 @@ def cache_clear_expired() -> int:
 def get_cache_stats() -> dict:
     """Statistik cache untuk ditampilkan di sidebar."""
     try:
-        with CACHE_LOCK:
-            conn = sqlite3.connect(DB_PATH)
-            try:
-                total = conn.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
-                active = conn.execute(
-                    "SELECT COUNT(*) FROM cache WHERE expires_at > ?", (time.time(),)
-                ).fetchone()[0]
-                expired = total - active
-                # ukuran db
-                size_mb = os.path.getsize(DB_PATH) / (1024 * 1024) if os.path.exists(DB_PATH) else 0
-                return {
-                    "total": total,
-                    "active": active,
-                    "expired": expired,
-                    "size_mb": round(size_mb, 2),
-                }
-            finally:
-                conn.close()
+        conn = _get_conn()
+        total = conn.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
+        active = conn.execute(
+            "SELECT COUNT(*) FROM cache WHERE expires_at > ?", (time.time(),)
+        ).fetchone()[0]
+        expired = total - active
+        size_mb = os.path.getsize(DB_PATH) / (1024 * 1024) if os.path.exists(DB_PATH) else 0
+        return {
+            "total": total,
+            "active": active,
+            "expired": expired,
+            "size_mb": round(size_mb, 2),
+        }
     except Exception:
         return {"total": 0, "active": 0, "expired": 0, "size_mb": 0.0}
 

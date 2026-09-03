@@ -14,6 +14,29 @@ Mengapa bukan VADER/IndoBERT?
 - Custom lexicon: balance antara akurasi & performa
 """
 
+# ============================================================
+# STOPWORDS SENTIMEN: kata-kata yang tidak relevan untuk analisis
+# sentiment/wordcloud finansial Indonesia. Disimpan terpusat di sini
+# agar tidak terjadi duplikasi antara app.py & utils_ui.py.
+# ============================================================
+STOPWORDS_SENTIMEN = frozenset([
+    # gramatikal generik
+    "yang", "di", "dan", "dengan", "untuk", "pada", "ke", "karena",
+    "oleh", "dari", "ini", "itu", "akan", "juga", "atau", "bisa",
+    "tidak", "ada", "seperti", "tahun", "saat", "menjadi", "lebih",
+    "hari", "secara", "sudah", "dapat", "tersebut", "persen", "rp",
+    "juta", "miliar", "triliun", "sebesar", "mencapai", "catat",
+    "hingga", "serta", "antara", "bahwa", "ia", "mereka", "kita",
+    "kami", "anda", "nya", "lah", "pun", "masih", "sedang", "telah",
+    "ujar", "kata", "menurut", "bahkan", "jadi", "masuk",
+    # nama kota/media yang sering muncul
+    "jakarta", "indonesia", "senilai", "cnn", "cnbc", "kontan",
+    # tambahan dari app.py
+    "tidak", "ada", "seperti", "saat", "menjadi", "lebih", "hari",
+    "dapat", "tersebut", "rp", "juta", "miliar", "triliun", "sebesar",
+    "mencapai", "catat", "hingga",
+])
+
 import re
 from typing import Tuple
 

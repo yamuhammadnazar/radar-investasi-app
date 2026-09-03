@@ -30,7 +30,8 @@ def _build_session(max_retries: int = 3, pool_size: int = 10) -> requests.Sessio
         total=max_retries,
         backoff_factor=0.5,  # 0.5s, 1s, 2s
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["HEAD", "GET", "OPTIONS"],
+        # Sertakan POST agar Telegram & API lain juga otomatis retry
+        allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],
         raise_on_status=False,
     )
     adapter = HTTPAdapter(
@@ -78,6 +79,35 @@ def safe_request(
             timeout=timeout,
             verify=verify,
             allow_redirects=allow_redirects,
+        )
+    except requests.exceptions.Timeout:
+        return None
+    except requests.exceptions.ConnectionError:
+        return None
+    except requests.exceptions.RequestException:
+        return None
+    except Exception:
+        return None
+
+
+def safe_post(
+    url: str,
+    json: dict | None = None,
+    *,
+    timeout: float = 10.0,
+    session: requests.Session | None = None,
+) -> requests.Response | None:
+    """
+    Wrapper POST request yang aman (untuk Telegram, dsb).
+    Mengembalikan Response atau None jika timeout/error.
+    """
+    sess = session or get_http_session()
+    try:
+        return sess.post(
+            url,
+            json=json or {},
+            headers=HEADERS,
+            timeout=timeout,
         )
     except requests.exceptions.Timeout:
         return None

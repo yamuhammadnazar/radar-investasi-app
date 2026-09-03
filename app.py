@@ -35,14 +35,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils import (
     aturan_portal,
     dapatkan_feed_rss,
-    dapatkan_url_asli,
     scrape_artikel,
     get_http_session,
     get_cache_stats,
     cache_clear_expired,
     analisa_sentimen_advanced,
     extract_tickers,
-    get_primary_ticker,
     extract_portfolio_hits,
     TelegramNotifier,
     TelegramConfig,
@@ -83,7 +81,7 @@ KATEGORI_PORTOFOLIO = {
         "majoris sukuk negara", "reksadana pasar uang", "reksadana campuran"
     ],
     "EMAS": [
-        "emas", "gold", "xau", "xau/usd", "harga emas", "emas pegadaian", "emas antam", "Pegadaian", 
+        "emas", "gold", "xau", "xau/usd", "harga emas", "emas pegadaian", "emas antam", "Pegadaian",
         "logam mulia", "LM Antam", "LM Pegadaian"
     ],
     "KOMODITAS": [
@@ -103,10 +101,11 @@ KATEGORI_PORTOFOLIO = {
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
         "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konsitusi"
+        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat"
     ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
-        "Indeks", "Bencana", "Anime", "Game", 
+        "Indeks", "Bencana", "Anime", "Game",
     ]
 }
 
@@ -130,6 +129,27 @@ STOPWORDS_ID = set([
 ])
 
 kata_kunci_portofolio = [kw for sublist in KATEGORI_PORTOFOLIO.values() for kw in sublist]
+
+# ============================================================
+# PRE-COMPILED REGEX untuk performa
+# ============================================================
+# Membuat satu pola besar sekali saja (O(1) kompilasi) dibanding
+# mem-build regex di dalam loop process_entry untuk ~80 kata kunci.
+_KK_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(k) for k in sorted(set(kata_kunci_portofolio), key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+
+# Pre-compiled per kategori untuk tentukan_kategori_aset (menghindari
+# mem-build ulang ~80 pola regex di hot path).
+_KATEGORI_PATTERNS = {
+    kat: [
+        re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
+        for kw in sorted(set(keywords), key=len, reverse=True)
+    ]
+    for kat, keywords in KATEGORI_PORTOFOLIO.items()
+}
+
 
 
 # ============================================================
@@ -176,18 +196,20 @@ def cek_status_bursa(dt_obj):
 
 
 def tentukan_kategori_aset(teks_lower):
-    for kat, kw_list in KATEGORI_PORTOFOLIO.items():
-        for kw in kw_list:
-            if re.search(rf'\b{re.escape(kw)}\b', teks_lower):
-                if kat in ["SAHAM_EMITEN", "SEKTOR_SAHAM"]:
+    # Pre-compiled patterns grouped by kategori agar O(n) loop tanpa rebuild regex
+    for kat, patterns in _KATEGORI_PATTERNS.items():
+        for pat in patterns:
+            if pat.search(teks_lower):
+                # Mapping kategori -> label output
+                if kat in ("SAHAM_EMITEN", "SEKTOR_SAHAM"):
                     return "SAHAM"
-                elif kat in ["ETF", "REKSADANA"]:
+                if kat in ("ETF", "REKSADANA"):
                     return "REKSADANA_ETF"
-                elif kat in ["EMAS", "KOMODITAS"]:
+                if kat in ("EMAS", "KOMODITAS"):
                     return "EMAS_KOMODITAS"
-                elif kat in ["MAKRO_INDONESIA", "MAKRO_GLOBAL", "REGULASI"]:
+                if kat in ("MAKRO_INDONESIA", "MAKRO_GLOBAL", "REGULASI"):
                     return "MAKRO_REGULASI"
-                elif kat in ["UMUM"]:
+                if kat == "UMUM":
                     return "UMUM"
     return "MAKRO_REGULASI"
 
@@ -238,17 +260,6 @@ def ringkas_teks(teks, kata_kunci_list, max_kalimat=2):
     return " ".join([k[2] for k in kalimat_terpilih_urut])
 
 
-def analisa_sentimen(teks):
-    teks_lower = teks.lower()
-    skor_positif = sum(1 for kata in KATA_POSITIF if kata in teks_lower)
-    skor_negatif = sum(1 for kata in KATA_NEGATIF if kata in teks_lower)
-    if skor_positif > skor_negatif:
-        return "POSITIF"
-    if skor_negatif > skor_positif:
-        return "NEGATIF"
-    return "NETRAL"
-
-
 # ============================================================
 # CORE: PROCESS SINGLE ENTRY (untuk ThreadPoolExecutor)
 # ============================================================
@@ -277,14 +288,11 @@ def process_entry(
 
     teks_pencocokan = (judul + " " + deskripsi).lower()
 
-    # Filter kata kunci portofolio
-    cocok, trigger_terdeteksi = False, "UMUM"
-    for kunci in kata_kunci_portofolio:
-        if re.search(rf'\b{re.escape(kunci)}\b', teks_pencocokan):
-            cocok, trigger_terdeteksi = True, kunci.upper()
-            break
-    if not cocok:
+    # Filter kata kunci portofolio (pre-compiled untuk performa)
+    match = _KK_PATTERN.search(teks_pencocokan)
+    if match is None:
         return None
+    trigger_terdeteksi = match.group(1).upper()
 
     # Deduplication
     if aktifkan_deduplikasi and apakah_duplikat(judul, link, daftar_tersimpan, ambang_duplikat):

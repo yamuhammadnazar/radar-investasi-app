@@ -18,7 +18,18 @@ from typing import List, Dict, Optional
 from queue import Queue, Empty
 from dataclasses import dataclass
 
-from .http_client import safe_request
+from .http_client import safe_post
+from .http_client import get_http_session  # noqa: F401  (tetap tersedia jika perlu)
+
+
+# Logger sederhana untuk debug Telegram
+import logging as _logging
+_logger = _logging.getLogger("telegram_notifier")
+if not _logger.handlers:
+    _h = _logging.StreamHandler()
+    _h.setFormatter(_logging.Formatter("%(asctime)s [%(name)s] %(message)s"))
+    _logger.addHandler(_h)
+    _logger.setLevel(_logging.WARNING)
 
 
 # Telegram API limits
@@ -74,7 +85,7 @@ class TelegramNotifier:
             self._sent_timestamps.append(time.time())
 
     def _send_message(self, text: str) -> bool:
-        """Low-level: kirim 1 pesan ke Telegram."""
+        """Low-level: kirim 1 pesan ke Telegram (POST)."""
         if not self.config.bot_token or not self.config.chat_id:
             return False
 
@@ -89,25 +100,16 @@ class TelegramNotifier:
             "disable_web_page_preview": True,
         }
 
-        response = safe_request(
-            url, timeout=10
-        )
-
-        if response is None:
+        resp = safe_post(url, json=payload, timeout=10)
+        if resp is None:
             return False
-
-        # Telegram expects POST, safe_request only does GET
-        # Use session directly
-        from .http_client import get_http_session
-        sess = get_http_session()
-        try:
-            resp = sess.post(url, json=payload, timeout=10)
-            success = resp.status_code == 200
-            if success:
-                self._record_sent()
-            return success
-        except Exception:
-            return False
+        if resp.status_code == 200:
+            self._record_sent()
+            return True
+        # Log error Telegram untuk debugging
+        if resp.status_code >= 500 or resp.status_code == 429:
+            _logger.debug(f"Telegram status {resp.status_code}: {resp.text[:200]}")
+        return False
 
     def _format_artikel(self, artikel: Dict) -> str:
         """Format 1 artikel jadi pesan Markdown Telegram."""
@@ -246,7 +248,6 @@ def test_connection(bot_token: str, chat_id: str) -> tuple[bool, str]:
 
     url = f"https://api.telegram.org/bot{bot_token}/getMe"
     try:
-        from .http_client import get_http_session
         sess = get_http_session()
         resp = sess.get(url, timeout=8)
         if resp.status_code == 200:
