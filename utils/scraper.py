@@ -115,8 +115,11 @@ def _ekstrak_isi_html(html_text: str, tag: str, class_name: str) -> tuple[str, s
 # Jika setelah MAX_SCRAPE_ATTEMPTS percobaan tetap gagal, kembalikan None
 # agar caller bisa menghentikan proses jika kegagalan berturut-turut.
 MAX_SCRAPE_ATTEMPTS = 3
-# Threshold gagal berturut-turut pada loop per-portal sebelum proses dihentikan
-HALT_ON_CONSECUTIVE_FAILURES = 2
+# Threshold RASIO kegagalan (gagal/total) pada loop per-portal sebelum proses
+# dihentikan dini. 2x gagal saja tidak cukup karena bisa jadi transient/rate-limit;
+# kita hentikan hanya jika mayoritas entry benar-benar gagal akses (bukan di-skip).
+HALT_FAILURE_RATIO = 0.7
+HALT_MIN_SAMPLE = 5  # butuh minimal N entry selesai sebelum memutuskan halt
 
 
 def scrape_artikel(

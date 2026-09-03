@@ -46,7 +46,7 @@ from utils import (
     TelegramConfig,
     test_connection,
 )
-from utils.scraper import HALT_ON_CONSECUTIVE_FAILURES
+from utils.scraper import HALT_FAILURE_RATIO, HALT_MIN_SAMPLE
 
 
 # ============================================================
@@ -73,7 +73,7 @@ KATEGORI_PORTOFOLIO = {
     ],
     "ETF": [
         "r-lq45x", "lq45", "indeks lq45", "rebalancing lq45",
-        "konstituen lq45", "etf indonesia", "foreign flow"
+        "konstituen lq45", "etf indonesia", "foreign flow", "SPY", "Indeks SPY"
     ],
     "REKSADANA": [
         "majoris pasar uang syariah", "mandiri invasta dana syariah",
