@@ -129,4 +129,12 @@ aturan_portal = {
         "rss_google": "https://news.google.com/rss/search?q=site:tvonenews.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "article", "class": "content-article", "butuh_page_all": False
     },
+    "Landak Pusat Informasi (Blogger)": {
+        # Portal berita lokal Kalbar (Kab. Landak) berbasis template Blogger/EvoMagz.
+        # Feed Blogger default: /feeds/posts/default?alt=rss (RSS 2.0 + Atom 1.0)
+        # Kontainer isi berita: <div class="post-body entry-content"> (paragraf <p>)
+        "rss_asli": "https://www.landakpusatinformasi.com/feeds/posts/default?alt=rss",
+        "rss_google": "",
+        "tag": "div", "class": "post-body entry-content", "butuh_page_all": False
+    },
 }

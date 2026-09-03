@@ -111,6 +111,14 @@ def _ekstrak_isi_html(html_text: str, tag: str, class_name: str) -> tuple[str, s
     return "Konten tidak dapat diekstrak.", "Terbatas"
 
 
+# Batas percobaan ulang per artikel (retry di sisi aplikasi, di atas retry urllib3).
+# Jika setelah MAX_SCRAPE_ATTEMPTS percobaan tetap gagal, kembalikan None
+# agar caller bisa menghentikan proses jika kegagalan berturut-turut.
+MAX_SCRAPE_ATTEMPTS = 3
+# Threshold gagal berturut-turut pada loop per-portal sebelum proses dihentikan
+HALT_ON_CONSECUTIVE_FAILURES = 2
+
+
 def scrape_artikel(
     entry,
     aturan: dict,
@@ -119,7 +127,8 @@ def scrape_artikel(
     timeout: float = SCRAPE_TIMEOUT,
 ) -> dict | None:
     """
-    Scrape satu artikel. Mengembalikan dict hasil atau None jika gagal.
+    Scrape satu artikel dengan retry internal (MAX_SCRAPE_ATTEMPTS x).
+    Mengembalikan dict hasil atau None jika semua percobaan gagal.
     Menggunakan cache untuk konten artikel.
     """
     judul = entry.get("title", "N/A")
@@ -137,51 +146,71 @@ def scrape_artikel(
             "from_cache": True,
         }
 
-    start = time.time()
+    last_err: str | None = None
+    for attempt in range(1, MAX_SCRAPE_ATTEMPTS + 1):
+        start = time.time()
+        try:
+            # Resolve URL jika Google News
+            url_asli = dapatkan_url_asli(link)
+            link_target = url_asli + "?page=all" if aturan.get("butuh_page_all") else url_asli
 
-    try:
-        # Resolve URL jika Google News
-        url_asli = dapatkan_url_asli(link)
-        link_target = url_asli + "?page=all" if aturan.get("butuh_page_all") else url_asli
+            response = safe_request(link_target, timeout=timeout, session=session)
+            if response is None:
+                last_err = "timeout/conn"
+                # exponential backoff kecil antar attempt
+                if attempt < MAX_SCRAPE_ATTEMPTS:
+                    time.sleep(0.3 * attempt)
+                continue
 
-        response = safe_request(link_target, timeout=timeout, session=session)
-        if response is None:
-            return None
+            if time.time() - start > timeout + 1:
+                last_err = "timeout"
+                if attempt < MAX_SCRAPE_ATTEMPTS:
+                    time.sleep(0.3 * attempt)
+                continue
 
-        if time.time() - start > timeout + 1:
-            return None
+            if response.status_code == 200:
+                isi, status_akses = _ekstrak_isi_html(
+                    response.text, aturan["tag"], aturan["class"]
+                )
+                tanggal = entry.get("published", "") or entry.get("updated", "N/A")
+                # Simpan ke cache
+                cache_set(
+                    "article",
+                    link,
+                    {"tanggal": tanggal, "isi": isi, "status_akses": status_akses},
+                    ttl=DEFAULT_ARTICLE_TTL,
+                )
+                return {
+                    "judul": judul,
+                    "link": link,
+                    "tanggal": tanggal,
+                    "isi": isi,
+                    "status_akses": status_akses,
+                    "from_cache": False,
+                }
 
-        if response.status_code == 200:
-            isi, status_akses = _ekstrak_isi_html(
-                response.text, aturan["tag"], aturan["class"]
-            )
-            tanggal = entry.get("published", "") or entry.get("updated", "N/A")
-            # Simpan ke cache
-            cache_set(
-                "article",
-                link,
-                {"tanggal": tanggal, "isi": isi, "status_akses": status_akses},
-                ttl=DEFAULT_ARTICLE_TTL,
-            )
-            return {
-                "judul": judul,
-                "link": link,
-                "tanggal": tanggal,
-                "isi": isi,
-                "status_akses": status_akses,
-                "from_cache": False,
-            }
+            # HTTP non-200: tidak percobaan ulang untuk 4xx (client error),
+            # tapi retry untuk 5xx (server error) & 429 (rate limit).
+            last_err = f"http {response.status_code}"
+            if response.status_code < 500 and response.status_code != 429:
+                break
+            if attempt < MAX_SCRAPE_ATTEMPTS:
+                time.sleep(0.3 * attempt)
+        except Exception as exc:
+            last_err = f"exc:{type(exc).__name__}"
+            if attempt < MAX_SCRAPE_ATTEMPTS:
+                time.sleep(0.3 * attempt)
 
-        return {
-            "judul": judul,
-            "link": link,
-            "tanggal": entry.get("published", "") or entry.get("updated", "N/A"),
-            "isi": f"Gagal akses. Status: {response.status_code}",
-            "status_akses": "Error",
-            "from_cache": False,
-        }
-    except Exception:
-        return None
+    # Semua attempt habis
+    return {
+        "judul": judul,
+        "link": link,
+        "tanggal": entry.get("published", "") or entry.get("updated", "N/A"),
+        "isi": f"Gagal akses setelah {MAX_SCRAPE_ATTEMPTS}x percobaan ({last_err}).",
+        "status_akses": "Error",
+        "from_cache": False,
+        "is_failure_marker": True,  # penanda untuk caller menghitung gagal
+    }
 
 
 def scrape_entries_parallel(

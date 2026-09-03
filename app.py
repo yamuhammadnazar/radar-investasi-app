@@ -46,6 +46,7 @@ from utils import (
     TelegramConfig,
     test_connection,
 )
+from utils.scraper import HALT_ON_CONSECUTIVE_FAILURES
 
 
 # ============================================================
@@ -101,7 +102,7 @@ KATEGORI_PORTOFOLIO = {
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
         "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konsitusi"
-        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat"
+        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat","ngabang","kalbar",
     ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
@@ -682,6 +683,10 @@ if tombol_scan:
         cache_total_awal = cache_hits_awal["total"]
 
         # Loop utama: tiap portal di-fetch secara paralel di dalamnya
+        # Statistik kegagalan per-portal (untuk laporan akhir)
+        portal_failure_counts: dict[str, int] = {}
+        portal_halted_flags: dict[str, bool] = {}
+
         for idx, nama_portal in enumerate(portal_terpilih):
             elapsed_time = round(time.time() - start_time, 1)
             timer_container.markdown(f"""
@@ -700,11 +705,18 @@ if tombol_scan:
             feed = dapatkan_feed_rss(aturan)
             if not feed or not hasattr(feed, "entries") or len(feed.entries) == 0:
                 progress_bar.progress((idx + 1) / total_portal)
+                portal_failure_counts[nama_portal] = portal_failure_counts.get(nama_portal, 0) + 1
                 continue
 
             # Batasi jumlah entry yang akan diproses
             target_entries = list(feed.entries)[:max_artikel_per_portal]
             session = get_http_session()
+
+            # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal.
+            # counter gagal berturut-turut: jika >= HALT_ON_CONSECUTIVE_FAILURES,
+            # batalkan sisa entry untuk portal ini (efisien — portal kemungkinan down).
+            failed_streak = 0
+            halted_early = False
 
             # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal
             batch_size = max_workers
@@ -720,20 +732,40 @@ if tombol_scan:
                     for entry in target_entries
                 }
 
-                # Kumpulkan hasil dengan proteksi timeout
+                # Kumpulkan hasil dengan proteksi timeout + halt-on-failure
                 for future in as_completed(future_to_entry, timeout=60):
                     try:
                         record = future.result(timeout=15)
-                        if record is not None:
-                            kumpulan_data_global.append(record)
                     except Exception:
+                        record = None
+
+                    if record is None:
+                        failed_streak += 1
+                        if failed_streak > HALT_ON_CONSECUTIVE_FAILURES:
+                            # Gagal > HALT_ON_CONSECUTIVE_FAILURES kali berturut-turut:
+                            # batalkan sisa future, hentikan proses untuk portal ini.
+                            halted_early = True
+                            for f in future_to_entry:
+                                f.cancel()
+                            break
                         continue
+
+                    # Sukses — reset streak
+                    failed_streak = 0
+                    kumpulan_data_global.append(record)
+
+            portal_failure_counts[nama_portal] = failed_streak
+            portal_halted_flags[nama_portal] = halted_early
 
             # Update progress
             progress_bar.progress((idx + 1) / total_portal)
+            halt_msg = (
+                f" ⚠️ dihentikan dini (gagal > {HALT_ON_CONSECUTIVE_FAILURES}x berturut-turut)"
+                if halted_early else ""
+            )
             status_text.text(
                 f"✅ {nama_portal}: {len(target_entries)} entry diproses | "
-                f"Total terkumpul: {len(kumpulan_data_global)} berita"
+                f"Total terkumpul: {len(kumpulan_data_global)} berita{halt_msg}"
             )
 
             # Simpan incremental
