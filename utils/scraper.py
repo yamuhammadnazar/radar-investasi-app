@@ -18,8 +18,8 @@ from .cache import cache_get, cache_set, DEFAULT_FEED_TTL, DEFAULT_ARTICLE_TTL
 from .portals import aturan_portal
 
 # Batas paralelisme per scan (terlalu tinggi = bisa kena rate-limit / IP block)
-DEFAULT_MAX_WORKERS = 5
-MAX_ARTIKEL_PER_PORTAL = 15
+DEFAULT_MAX_WORKERS = 8  # Dinaikkan 5 -> 8 untuk kecepatan lebih tinggi
+MAX_ARTIKEL_PER_PORTAL = 40  # Dinaikkan 15 -> 40 agar lebih banyak artikel diproses per portal
 SCRAPE_TIMEOUT = 7  # detik per artikel
 MAX_ARTIKEL_LEN = 8000  # batasi panjang teks untuk mencegah memory blow-up
 
@@ -94,16 +94,20 @@ def _ekstrak_isi_html(html_text: str, tag: str, class_name: str) -> tuple[str, s
     artikel_body = soup.find(tag, class_=class_name)
     if artikel_body:
         paragraf = artikel_body.find_all("p")
-        teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 20]
+        # Longgarkan filter dari 20 -> 10 karakter agar lead/kutipan pendek
+        # tidak dibuang dan lebih banyak artikel terekstrak "Penuh".
+        teks_paragraf = [p.text.strip() for p in paragraf if len(p.text.strip()) > 10]
         if teks_paragraf:
             return "\n\n".join(teks_paragraf)[:MAX_ARTIKEL_LEN], "Penuh"
 
     # Fallback universal
     semua_p = soup.find_all("p")
+    # Longgarkan filter dari 30 -> 20 karakter, plus filter tambahan untuk
+    # membuang paragraf boilerplate (nav, cookie, dll).
     teks_universal = [
         p.text.strip() for p in semua_p
-        if len(p.text.strip()) > 30
-        and not re.search(r"(cookie|privacy|baca juga)", p.text.strip(), re.IGNORECASE)
+        if len(p.text.strip()) > 20
+        and not re.search(r"(cookie|privacy|baca juga|berlangganan|iklan|advertisement)", p.text.strip(), re.IGNORECASE)
     ]
     if teks_universal:
         return "\n\n".join(teks_universal)[:MAX_ARTIKEL_LEN], "Penuh"
@@ -150,6 +154,9 @@ def scrape_artikel(
         }
 
     last_err: str | None = None
+    # Backoff antar attempt dipercepat (0.3 -> 0.15) karena paralelisme tinggi
+    # dan kita ingin seluruh scan selesai lebih cepat.
+    BACKOFF_MULT = 0.15
     for attempt in range(1, MAX_SCRAPE_ATTEMPTS + 1):
         start = time.time()
         try:
@@ -160,15 +167,15 @@ def scrape_artikel(
             response = safe_request(link_target, timeout=timeout, session=session)
             if response is None:
                 last_err = "timeout/conn"
-                # exponential backoff kecil antar attempt
+                # exponential backoff kecil antar attempt (dipercepat)
                 if attempt < MAX_SCRAPE_ATTEMPTS:
-                    time.sleep(0.3 * attempt)
+                    time.sleep(BACKOFF_MULT * attempt)
                 continue
 
             if time.time() - start > timeout + 1:
                 last_err = "timeout"
                 if attempt < MAX_SCRAPE_ATTEMPTS:
-                    time.sleep(0.3 * attempt)
+                    time.sleep(BACKOFF_MULT * attempt)
                 continue
 
             if response.status_code == 200:
@@ -198,11 +205,11 @@ def scrape_artikel(
             if response.status_code < 500 and response.status_code != 429:
                 break
             if attempt < MAX_SCRAPE_ATTEMPTS:
-                time.sleep(0.3 * attempt)
+                time.sleep(BACKOFF_MULT * attempt)
         except Exception as exc:
             last_err = f"exc:{type(exc).__name__}"
             if attempt < MAX_SCRAPE_ATTEMPTS:
-                time.sleep(0.3 * attempt)
+                time.sleep(BACKOFF_MULT * attempt)
 
     # Semua attempt habis
     return {

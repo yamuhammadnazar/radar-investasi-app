@@ -467,7 +467,7 @@ with st.container(border=True):
     else:
         st.info("Data trigger emiten tidak tersedia.")
 
-text_columns = [c for c in ['GitHub', 'Judul', 'Ringkasan Berita'] if c in df.columns]
+text_columns = [c for c in ['Judul', 'Ringkasan Berita', 'Isi Berita'] if c in df.columns]
 gabung_tuple = tuple(
     val for col in text_columns
     for val in df[col].dropna().astype(str).tolist()

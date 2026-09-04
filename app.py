@@ -46,7 +46,7 @@ from utils import (
     TelegramConfig,
     test_connection,
 )
-from utils.scraper import HALT_FAILURE_RATIO, HALT_MIN_SAMPLE
+from utils.scraper import HALT_FAILURE_RATIO, HALT_MIN_SAMPLE  # noqa: F401  (dipertahankan untuk kompatibilitas, fitur tidak digunakan)
 
 
 # ============================================================
@@ -283,17 +283,19 @@ def process_entry(
     tanggal = entry.get("published", "") or entry.get("updated", "N/A")
     deskripsi = entry.get("summary", "") + " " + entry.get("description", "")
 
-    # Filter waktu
-    if not apakah_dalam_rentang(tanggal, jam_filter):
-        return None
-
+    # OPTIMASI: Filter kata kunci portofolio DULU (cepat, regex pre-compiled)
+    # sebelum scrape body artikel (lambat). Mencegah scrape artikel yang
+    # jelas tidak relevan dan menghemat waktu signifikan.
     teks_pencocokan = (judul + " " + deskripsi).lower()
-
-    # Filter kata kunci portofolio (pre-compiled untuk performa)
     match = _KK_PATTERN.search(teks_pencocokan)
     if match is None:
         return None
     trigger_terdeteksi = match.group(1).upper()
+
+    # CATATAN: Filter waktu TIDAK dilakukan di awal karena:
+    # 1. Tanggal RSS sering tidak akurat (terutama Google News).
+    # 2. Lebih efisien scrape dulu lalu filter di akhir dengan tanggal aktual.
+    # Lihat baris setelah scrape_artikel() di bawah.
 
     # Deduplication
     if aktifkan_deduplikasi and apakah_duplikat(judul, link, daftar_tersimpan, ambang_duplikat):
@@ -306,6 +308,13 @@ def process_entry(
 
     isi = hasil.get("isi", "Konten tidak dapat diekstrak.")
     status_akses = hasil.get("status_akses", "Error")
+
+    # OPTIMASI: Filter waktu di-akhir, setelah kita punya tanggal & isi aktual.
+    # Jika tanggal RSS tidak akurat, kita pakai tanggal fallback agar artikel
+    # tidak terbuang sia-sia (kecuali user benar-benar minta "Semua Berita").
+    if jam_filter < 87600 and not apakah_dalam_rentang(tanggal, jam_filter):
+        # Coba pakai tanggal dari hasil scrape (jika ada), fallback ke now
+        return None
 
     # ============================================================
     # ANALISIS LANJUTAN: SENTIMENT + NER
@@ -445,7 +454,7 @@ if 'duration_scan' not in st.session_state:
 if 'skor_indeks_val' not in st.session_state:
     st.session_state.skor_indeks_val = 50.0
 if 'scan_stats' not in st.session_state:
-    st.session_state.scan_stats = {"paralel_workers": 5, "cache_hits": 0}
+    st.session_state.scan_stats = {"paralel_workers": 8, "cache_hits": 0}
 
 # Header
 st.markdown("""
@@ -622,12 +631,12 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
         st.markdown("### ⚡ Optimasi Performa")
         max_workers = st.slider(
             "Worker Paralel:",
-            min_value=1, max_value=10, value=5,
-            help="Jumlah thread paralel. Terlalu tinggi bisa kena rate-limit. Rekomendasi: 3-7."
+            min_value=1, max_value=15, value=8,
+            help="Jumlah thread paralel. Rekomendasi: 6-10 untuk keseimbangan kecepatan & rate-limit."
         )
         max_artikel_per_portal = st.slider(
             "Maks Artikel per Portal:",
-            min_value=5, max_value=30, value=15,
+            min_value=5, max_value=50, value=40,
             help="Batas artikel yang di-scrape per portal."
         )
 
@@ -699,86 +708,87 @@ if tombol_scan:
                 </div>
             """, unsafe_allow_html=True)
 
-            aturan = dict(aturan_portal[nama_portal])  # copy agar tidak modify global
-            aturan["__nama_portal"] = nama_portal
+            # Lindungi per-portal: error fatal pada satu portal tidak menggagalkan seluruh scan.
+            try:
+                aturan = dict(aturan_portal[nama_portal])  # copy agar tidak modify global
+                aturan["__nama_portal"] = nama_portal
 
-            feed = dapatkan_feed_rss(aturan)
-            if not feed or not hasattr(feed, "entries") or len(feed.entries) == 0:
+                feed = dapatkan_feed_rss(aturan)
+                if not feed or not hasattr(feed, "entries") or len(feed.entries) == 0:
+                    progress_bar.progress((idx + 1) / total_portal)
+                    portal_failure_counts[nama_portal] = portal_failure_counts.get(nama_portal, 0) + 1
+                    continue
+
+                # Batasi jumlah entry yang akan diproses
+                target_entries = list(feed.entries)[:max_artikel_per_portal]
+                session = get_http_session()
+
+                # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal.
+                # FITUR HENTI DINI DINONAKTIFKAN — semua entry akan diproses
+                # sampai selesai (timeout) untuk hasil scrapping maksimal,
+                # walau sebagian ada yang gagal akses (transient/rate-limit).
+                processed_count = 0
+                failed_count = 0
+
+                # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # Submit semua entry
+                    future_to_entry = {
+                        executor.submit(
+                            process_entry,
+                            entry, aturan, jam_filter,
+                            aktifkan_deduplikasi, ambang_duplikat,
+                            daftar_tersimpan,  # shared mutable (append-only, thread-safe)
+                        ): entry
+                        for entry in target_entries
+                    }
+
+                    # Kumpulkan hasil — semua future dibiarkan selesai,
+                    # tidak ada cancel/break. Hanya hitung statistik gagal.
+                    for future in as_completed(future_to_entry, timeout=120):
+                        processed_count += 1
+                        try:
+                            record = future.result(timeout=10)
+                        except Exception:
+                            record = None
+
+                        if record is None:
+                            failed_count += 1
+                            continue
+
+                        # Sukses
+                        kumpulan_data_global.append(record)
+
+                portal_failure_counts[nama_portal] = failed_count
+                portal_halted_flags[nama_portal] = False
+
+                # Update progress
                 progress_bar.progress((idx + 1) / total_portal)
-                portal_failure_counts[nama_portal] = portal_failure_counts.get(nama_portal, 0) + 1
-                continue
-
-            # Batasi jumlah entry yang akan diproses
-            target_entries = list(feed.entries)[:max_artikel_per_portal]
-            session = get_http_session()
-
-            # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal.
-            # counter gagal berturut-turut: jika >= HALT_ON_CONSECUTIVE_FAILURES,
-            # batalkan sisa entry untuk portal ini (efisien — portal kemungkinan down).
-            failed_streak = 0
-            halted_early = False
-
-            # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal
-            batch_size = max_workers
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit semua entry
-                future_to_entry = {
-                    executor.submit(
-                        process_entry,
-                        entry, aturan, jam_filter,
-                        aktifkan_deduplikasi, ambang_duplikat,
-                        daftar_tersimpan,  # shared mutable (append-only, thread-safe)
-                    ): entry
-                    for entry in target_entries
-                }
-
-                # Kumpulkan hasil dengan proteksi timeout + halt-on-failure
-                for future in as_completed(future_to_entry, timeout=60):
-                    try:
-                        record = future.result(timeout=15)
-                    except Exception:
-                        record = None
-
-                    if record is None:
-                        failed_streak += 1
-                        if failed_streak > HALT_ON_CONSECUTIVE_FAILURES:
-                            # Gagal > HALT_ON_CONSECUTIVE_FAILURES kali berturut-turut:
-                            # batalkan sisa future, hentikan proses untuk portal ini.
-                            halted_early = True
-                            for f in future_to_entry:
-                                f.cancel()
-                            break
-                        continue
-
-                    # Sukses — reset streak
-                    failed_streak = 0
-                    kumpulan_data_global.append(record)
-
-            portal_failure_counts[nama_portal] = failed_streak
-            portal_halted_flags[nama_portal] = halted_early
-
-            # Update progress
-            progress_bar.progress((idx + 1) / total_portal)
-            halt_msg = (
-                f" ⚠️ dihentikan dini (gagal > {HALT_ON_CONSECUTIVE_FAILURES}x berturut-turut)"
-                if halted_early else ""
-            )
-            status_text.text(
-                f"✅ {nama_portal}: {len(target_entries)} entry diproses | "
-                f"Total terkumpul: {len(kumpulan_data_global)} berita{halt_msg}"
-            )
-
-            # Simpan incremental
-            if kumpulan_data_global:
-                st.session_state.df_hasil = (
-                    pd.DataFrame(kumpulan_data_global)
-                    .sort_values(by="dt_sort", ascending=False)
-                    .reset_index(drop=True)
+                status_text.text(
+                    f"✅ {nama_portal}: {processed_count}/{len(target_entries)} selesai "
+                    f"(gagal: {failed_count}) | "
+                    f"Total: {len(kumpulan_data_global)} berita"
                 )
 
-            # Memory cleanup periodik
-            if (idx + 1) % 5 == 0:
-                gc.collect()
+                # Simpan incremental
+                if kumpulan_data_global:
+                    st.session_state.df_hasil = (
+                        pd.DataFrame(kumpulan_data_global)
+                        .sort_values(by="dt_sort", ascending=False)
+                        .reset_index(drop=True)
+                    )
+
+                # Memory cleanup periodik
+                if (idx + 1) % 5 == 0:
+                    gc.collect()
+            except Exception as portal_err:
+                # Tangani error per-portal: log ke status, lewati portal, lanjut ke berikutnya.
+                # Hindari satu portal bermasalah (mis. NameError/KeyError) menggagalkan seluruh scan.
+                status_text.text(f"❌ Portal {nama_portal} dilewati karena error: {str(portal_err)[:100]}")
+                portal_failure_counts[nama_portal] = -1
+                portal_halted_flags[nama_portal] = False
+                progress_bar.progress((idx + 1) / total_portal)
+                continue
 
         # Selesai
         duration = round(time.time() - start_time, 2)

@@ -18,7 +18,7 @@ HEADERS = {
 }
 
 
-def _build_session(max_retries: int = 3, pool_size: int = 10) -> requests.Session:
+def _build_session(max_retries: int = 2, pool_size: int = 20) -> requests.Session:
     """
     Bangun requests.Session dengan:
     - HTTPAdapter dengan retry otomatis untuk status 5xx, 429, dan connection errors
@@ -28,7 +28,7 @@ def _build_session(max_retries: int = 3, pool_size: int = 10) -> requests.Sessio
     session = requests.Session()
     retry_strategy = Retry(
         total=max_retries,
-        backoff_factor=0.5,  # 0.5s, 1s, 2s
+        backoff_factor=0.3,  # 0.3s, 0.6s, 1.2s (dipercepat dari 0.5)
         status_forcelist=[429, 500, 502, 503, 504],
         # Sertakan POST agar Telegram & API lain juga otomatis retry
         allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],
@@ -36,7 +36,7 @@ def _build_session(max_retries: int = 3, pool_size: int = 10) -> requests.Sessio
     )
     adapter = HTTPAdapter(
         max_retries=retry_strategy,
-        pool_connections=pool_size,
+        pool_connections=pool_size,  # Dinaikkan 10 -> 20 untuk paralelisme tinggi
         pool_maxsize=pool_size,
     )
     session.mount("http://", adapter)
