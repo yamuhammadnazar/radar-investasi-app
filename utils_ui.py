@@ -696,10 +696,22 @@ def render_global_filter(df: pd.DataFrame, key_prefix: str = "global") -> pd.Dat
         df_filtered = df_filtered[df_filtered['Sumber'].isin(selected_sumber)]
     if selected_sentimen and 'Sentimen' in df_filtered.columns:
         df_filtered = df_filtered[df_filtered['Sentimen'].isin(selected_sentimen)]
-    if date_range and 'dt_sort' in df_filtered.columns and isinstance(date_range, tuple) and len(date_range) == 2:
-        start_d, end_d = date_range
-        mask = (df_filtered['dt_sort'].dt.date >= start_d) & (df_filtered['dt_sort'].dt.date <= end_d)
-        df_filtered = df_filtered[mask]
+    if date_range and 'dt_sort' in df_filtered.columns:
+        # date_input dapat mengembalikan tuple (range) atau satu date
+        # ketika pengguna baru memilih tanggal awal.
+        if isinstance(date_range, tuple):
+            if len(date_range) == 2:
+                start_d, end_d = date_range
+            else:
+                start_d = end_d = date_range[0] if date_range else None
+        else:
+            start_d = end_d = date_range
+        if start_d is not None and end_d is not None:
+            if start_d > end_d:
+                start_d, end_d = end_d, start_d
+            dates = pd.to_datetime(df_filtered['dt_sort'], errors='coerce').dt.date
+            mask = dates.between(start_d, end_d)
+            df_filtered = df_filtered[mask.fillna(False)]
 
     # Tampilkan ringkasan filter
     if len(df_filtered) != len(df):

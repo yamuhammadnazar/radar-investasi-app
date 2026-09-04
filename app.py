@@ -32,7 +32,8 @@ from functools import lru_cache
 from dateutil import parser as date_parser
 from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from threading import Lock
+from typing import Optional
 from utils import (
     aturan_portal,
     dapatkan_feed_rss,
@@ -103,7 +104,7 @@ KATEGORI_PORTOFOLIO = {
     "REKSADANA": [
         "majoris pasar uang syariah", "mandiri invasta dana syariah",
         "sucorinvest equity fund", "pasar uang syariah", "sukuk",
-        "sbsn", "obligasi syariah", "reksadana saham", "reksadana obligasi"
+        "sbsn", "obligasi syariah", "reksadana saham", "reksadana obligasi",
         "majoris sukuk negara", "reksadana pasar uang", "reksadana campuran"
     ],
     "EMAS": [
@@ -126,8 +127,8 @@ KATEGORI_PORTOFOLIO = {
     "REGULASI": [
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
-        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konstitusi", "Mahkamah Konsitusi"
-        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat","ngabang","kalbar",
+        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konstitusi",
+        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "ngabang", "kalbar",
     ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
@@ -311,7 +312,8 @@ def process_entry(
     aktifkan_deduplikasi: bool,
     ambang_duplikat: float,
     daftar_tersimpan: list,
-) -> dict | None:
+    dedup_lock: Optional[Lock] = None,
+) -> Optional[dict]:
     """
     Proses satu entry RSS sampai menjadi record siap-simpan.
     Dipanggil paralel via ThreadPoolExecutor.
@@ -341,9 +343,18 @@ def process_entry(
     # 2. Lebih efisien scrape dulu lalu filter di akhir dengan tanggal aktual.
     # Lihat baris setelah scrape_artikel() di bawah.
 
-    # Deduplication
-    if aktifkan_deduplikasi and apakah_duplikat(judul, link, daftar_tersimpan, ambang_duplikat):
-        return None
+    # Deduplication: check + reserve harus atomik agar dua thread tidak
+    # memproses artikel yang sama secara bersamaan.
+    if aktifkan_deduplikasi:
+        if dedup_lock is None:
+            if apakah_duplikat(judul, link, daftar_tersimpan, ambang_duplikat):
+                return None
+            daftar_tersimpan.append({"link": link, "judul_bersih": bersihkan_judul(judul)})
+        else:
+            with dedup_lock:
+                if apakah_duplikat(judul, link, daftar_tersimpan, ambang_duplikat):
+                    return None
+                daftar_tersimpan.append({"link": link, "judul_bersih": bersihkan_judul(judul)})
 
     # Scrape isi artikel (dengan cache & retry internal)
     hasil = scrape_artikel(entry, aturan)
@@ -400,9 +411,6 @@ def process_entry(
         "Link": link,
         "Isi Berita": isi,
     }
-
-    # Catat untuk deduplication (thread-safe dengan append dalam main thread)
-    daftar_tersimpan.append({"link": link, "judul_bersih": bersihkan_judul(judul)})
 
     return record
 
@@ -511,6 +519,8 @@ if 'df_hasil' not in st.session_state:
     st.session_state.df_hasil = None
 if 'duration_scan' not in st.session_state:
     st.session_state.duration_scan = 0
+if 'last_scan_at' not in st.session_state:
+    st.session_state.last_scan_at = None
 if 'skor_indeks_val' not in st.session_state:
     st.session_state.skor_indeks_val = 50.0
 if 'scan_stats' not in st.session_state:
@@ -587,6 +597,12 @@ if st.session_state.df_hasil is not None:
         f'<div class="metric-value">{dur_scan} Detik</div></div>',
         unsafe_allow_html=True
     )
+    last_scan_at = st.session_state.get("last_scan_at")
+    if last_scan_at:
+        st.caption(
+            f"🕒 Pemindaian terakhir: {last_scan_at.strftime('%d/%m/%Y %H:%M:%S')} "
+            f"· Cache baru: {st.session_state.scan_stats.get('cache_hits', 0)} entry"
+        )
     st.markdown("<br>", unsafe_allow_html=True)
 
 # Info panel
@@ -705,7 +721,7 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
         cache_stats = get_cache_stats()
         col_cs1, col_cs2, col_cs3 = st.columns(3)
         col_cs1.metric("Total Entry", cache_stats["total"])
-        col_cs2.metric("Aktif", cache_stats["active"], delta=f"-{cache_stats['expired']} expired")
+        col_cs2.metric("Aktif", cache_stats["active"], help=f"Entry expired: {cache_stats['expired']}")
         col_cs3.metric("Ukuran DB", f"{cache_stats['size_mb']} MB")
 
         if st.button("🧹 Bersihkan Cache Expired"):
@@ -741,6 +757,7 @@ if tombol_scan:
     else:
         kumpulan_data_global: list[dict] = []
         daftar_tersimpan: list[dict] = []
+        dedup_lock = Lock()
         timer_container = st.empty()
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -804,7 +821,7 @@ if tombol_scan:
                             process_entry,
                             entry, aturan, jam_filter,
                             aktifkan_deduplikasi, ambang_duplikat,
-                            daftar_tersimpan,  # shared mutable (append-only, thread-safe)
+                            daftar_tersimpan, dedup_lock,
                         ): entry
                         for entry in target_entries
                     }
@@ -874,6 +891,7 @@ if tombol_scan:
             )
             st.session_state.df_hasil = df
             st.session_state.duration_scan = duration
+            st.session_state.last_scan_at = datetime.now()
             st.session_state.scan_stats = {
                 "paralel_workers": max_workers,
                 "cache_hits": max(0, cache_hits_scan),
