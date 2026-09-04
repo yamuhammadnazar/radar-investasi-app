@@ -14,7 +14,14 @@ from typing import Callable
 from bs4 import BeautifulSoup
 
 from .http_client import safe_request, get_http_session
-from .cache import cache_get, cache_set, DEFAULT_FEED_TTL, DEFAULT_ARTICLE_TTL
+from .cache import (
+    cache_get,
+    cache_set,
+    DEFAULT_FEED_TTL,
+    DEFAULT_ARTICLE_TTL,
+    cache_get_parsed,
+    cache_set_parsed,
+)
 from .portals import aturan_portal
 
 # Batas paralelisme per scan (terlalu tinggi = bisa kena rate-limit / IP block)
@@ -78,6 +85,10 @@ def _ekstrak_isi_html(html_text: str, tag: str, class_name: str) -> tuple[str, s
     Ekstrak isi artikel dari HTML.
     Mengembalikan (isi, status_akses) dengan logika fallback universal.
     """
+    # Memory bound: potong HTML >1MB agar BeautifulSoup tidak explode.
+    # Halaman portal jarang >1MB untuk konten artikelnya.
+    if isinstance(html_text, str) and len(html_text) > 1_000_000:
+        html_text = html_text[:1_000_000]
     try:
         soup = BeautifulSoup(html_text, "html.parser")
     except Exception:
@@ -153,6 +164,12 @@ def scrape_artikel(
             "from_cache": True,
         }
 
+    # Cache 'parsed' = hasil akhir yang sudah jadi dict siap-pakai.
+    # Skip seluruh proses HTTP+BeautifulSoup pada hit kedua untuk link yang sama.
+    parsed_cached = cache_get_parsed(link)
+    if parsed_cached is not None:
+        return parsed_cached
+
     last_err: str | None = None
     # Backoff antar attempt dipercepat (0.3 -> 0.15) karena paralelisme tinggi
     # dan kita ingin seluruh scan selesai lebih cepat.
@@ -190,7 +207,7 @@ def scrape_artikel(
                     {"tanggal": tanggal, "isi": isi, "status_akses": status_akses},
                     ttl=DEFAULT_ARTICLE_TTL,
                 )
-                return {
+                hasil_parsed = {
                     "judul": judul,
                     "link": link,
                     "tanggal": tanggal,
@@ -198,6 +215,9 @@ def scrape_artikel(
                     "status_akses": status_akses,
                     "from_cache": False,
                 }
+                # Simpan juga ke cache 'parsed' untuk skip seluruh proses pada hit berikutnya
+                cache_set_parsed(link, hasil_parsed)
+                return hasil_parsed
 
             # HTTP non-200: tidak percobaan ulang untuk 4xx (client error),
             # tapi retry untuk 5xx (server error) & 429 (rate limit).

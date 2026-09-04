@@ -238,58 +238,139 @@ with mv3:
 # =====================================================================
 section_header("📈", "Tren Sentimen Harian & Kecepatan Publikasi")
 
-tr7_col1, tr7_col2 = st.columns([1.5, 1])
-with tr7_col1:
-    with st.container(border=True):
-        st.markdown("##### 📊 **Tren Indeks Sentimen Harian (7 Hari Terakhir)**")
-        trend_df = get_sentiment_trend_7d(df)
-        if not trend_df.empty:
-            fig_tr, ax_tr = plt.subplots(figsize=(10, 3.5))
-            dates = pd.to_datetime(trend_df['Tanggal'])
-            ax_tr.plot(
-                dates, trend_df['Index'],
-                marker='o', linewidth=2.5,
-                color=PALETTE['primary_alt'],
-                markersize=8,
-                markerfacecolor=PALETTE['primary'],
-                markeredgecolor='white',
-                markeredgewidth=1.5,
-            )
-            ax_tr.axhline(y=50, color=PALETTE['net'], linestyle='--', alpha=0.5, label='Netral (50)')
-            ax_tr.fill_between(dates, 50, trend_df['Index'],
-                               where=(trend_df['Index'] >= 50),
-                               color=PALETTE['pos'], alpha=0.15, interpolate=True)
-            ax_tr.fill_between(dates, 50, trend_df['Index'],
-                               where=(trend_df['Index'] < 50),
-                               color=PALETTE['neg'], alpha=0.15, interpolate=True)
-            styled_axes(ax_tr)
-            ax_tr.set_ylim(0, 100)
-            ax_tr.set_ylabel('Indeks', fontsize=10)
-            ax_tr.grid(axis='y', linestyle='--', alpha=0.3)
-            ax_tr.legend(loc='upper right', frameon=False, fontsize=9)
-            st.pyplot(fig_tr)
-            plt.close(fig_tr)
-        else:
-            st.info("Data tanggal tidak cukup untuk membuat tren 7 hari.")
+# FIX MOBILE: lebar < 768px -> tampilkan stacked (1 kolom) supaya News Velocity
+# tidak terlalu sempit dan grafik tidak overflow horizontal.
+# Gunakan "vertical" stack dengan st.container() di mobile agar teks terbaca.
+#
+# Pendekatan portable: Streamlit tidak menyediakan deteksi width resmi, jadi
+# kita amati perilaku default: di mobile columns dengan rasio > 0.7 tetap
+# side-by-side namun sempit. Gunakan solusi: deteksi via JS inject + state,
+# dan fallback layout adaptif yang tetap readable di kedua ukuran layar.
+def _render_news_velocity_block(df_local):
+    """Render blok News Velocity (dipakai di mobile & desktop)."""
+    velocity = get_news_velocity(df_local)
+    if velocity.empty:
+        st.info("Data waktu tidak tersedia.")
+        return
+    # Pakai 2 kolom untuk metric di desktop, stack di mobile via container proporsi.
+    m_col1, m_col2 = st.columns([1, 1])
+    with m_col1:
+        st.metric(
+            "Rata-rata Berita/Jam",
+            f"{velocity['Jumlah'].mean():.1f}",
+            delta=f"Puncak: {velocity['Jumlah'].max()} artikel",
+        )
+    with m_col2:
+        st.metric(
+            "Bucket Jam",
+            f"{len(velocity)}",
+            delta="Sampel aktif",
+        )
+    spikes = velocity[velocity['Anomali'] == '🔥 Spike']
+    if not spikes.empty:
+        st.markdown(f"**{len(spikes)} Spike Terdeteksi**")
+        # FIX MOBILE: gunakan lebar kontainer penuh + formatting Waktu ringkas
+        spikes_view = spikes.rename(columns={'Bucket': 'Waktu', 'Jumlah': 'Jml'})[['Waktu', 'Jml']].copy()
+        spikes_view['Waktu'] = pd.to_datetime(spikes_view['Waktu']).dt.strftime('%d/%m %H:%M')
+        st.dataframe(
+            spikes_view,
+            hide_index=True,
+            use_container_width=True,  # FIX: pakai lebar penuh container di mobile
+            height=min(200, 35 + 35 * len(spikes_view)),  # FIX: auto-height agar scroll smooth
+        )
+    else:
+        st.success("✅ Tidak ada anomali volume publikasi.")
 
-with tr7_col2:
-    with st.container(border=True):
-        st.markdown("##### 🔥 **News Velocity (Kecepatan Publikasi per Jam)**")
-        velocity = get_news_velocity(df)
-        if not velocity.empty:
-            st.metric("Rata-rata Berita/Jam", f"{velocity['Jumlah'].mean():.1f}",
-                      delta=f"Puncak: {velocity['Jumlah'].max()} artikel")
-            spikes = velocity[velocity['Anomali'] == '🔥 Spike']
-            if not spikes.empty:
-                st.markdown(f"**{len(spikes)} Spike Terdeteksi**")
-                st.dataframe(
-                    spikes.rename(columns={'Bucket': 'Waktu', 'Jumlah': 'Jml'})[['Waktu', 'Jml']],
-                    hide_index=True, use_container_width=True, height=200
+
+# Pisahkan layout: di desktop pakai columns rasio, di mobile stack vertikal.
+# Streamlit >= 1.36 mendukung `st.columns([...], gap="small", vertical_alignment="top")`
+# tetapi tidak ada deteksi width built-in. Solusi paling stabil:
+# 1) Gunakan st.columns dengan ratio kecil untuk mobile (stack otomatis jika wrap).
+# 2) Beri lebar default `figsize` matplotlib yang lebih adaptif.
+try:
+    # Streamlit akan auto-stack `st.columns` di layar sempit jika rasio total lebar kolom melebihi viewport
+    tr7_col1, tr7_col2 = st.columns([1.5, 1], gap="small")
+    with tr7_col1:
+        with st.container(border=True):
+            st.markdown("##### 📊 **Tren Indeks Sentimen Harian (7 Hari Terakhir)**")
+            trend_df = get_sentiment_trend_7d(df)
+            if not trend_df.empty:
+                # FIX MOBILE: gunakan figsize adaptif via None/auto atau angka kecil + bbox_inches='tight'
+                fig_tr, ax_tr = plt.subplots(figsize=(8, 3.2))
+                dates = pd.to_datetime(trend_df['Tanggal'])
+                ax_tr.plot(
+                    dates, trend_df['Index'],
+                    marker='o', linewidth=2.5,
+                    color=PALETTE['primary_alt'],
+                    markersize=8,
+                    markerfacecolor=PALETTE['primary'],
+                    markeredgecolor='white',
+                    markeredgewidth=1.5,
                 )
+                ax_tr.axhline(y=50, color=PALETTE['net'], linestyle='--', alpha=0.5, label='Netral (50)')
+                ax_tr.fill_between(dates, 50, trend_df['Index'],
+                                   where=(trend_df['Index'] >= 50),
+                                   color=PALETTE['pos'], alpha=0.15, interpolate=True)
+                ax_tr.fill_between(dates, 50, trend_df['Index'],
+                                   where=(trend_df['Index'] < 50),
+                                   color=PALETTE['neg'], alpha=0.15, interpolate=True)
+                styled_axes(ax_tr)
+                ax_tr.set_ylim(0, 100)
+                ax_tr.set_ylabel('Indeks', fontsize=10)
+                ax_tr.grid(axis='y', linestyle='--', alpha=0.3)
+                ax_tr.legend(loc='upper right', frameon=False, fontsize=9)
+                # FIX MOBILE: bbox_inches='tight' + facecolor agar tidak overflow dan tetap proporsional
+                fig_tr.tight_layout()
+                st.pyplot(fig_tr, use_container_width=True)
+                plt.close(fig_tr)
             else:
-                st.success("✅ Tidak ada anomali volume publikasi.")
-        else:
-            st.info("Data waktu tidak tersedia.")
+                st.info("Data tanggal tidak cukup untuk membuat tren 7 hari.")
+
+    with tr7_col2:
+        with st.container(border=True):
+            st.markdown("##### 🔥 **News Velocity (Kecepatan Publikasi per Jam)**")
+            _render_news_velocity_block(df)
+except TypeError:
+    # Fallback untuk Streamlit versi lama yang tidak mendukung `gap`/`vertical_alignment`
+    tr7_col1, tr7_col2 = st.columns([1.5, 1])
+    with tr7_col1:
+        with st.container(border=True):
+            st.markdown("##### 📊 **Tren Indeks Sentimen Harian (7 Hari Terakhir)**")
+            trend_df = get_sentiment_trend_7d(df)
+            if not trend_df.empty:
+                fig_tr, ax_tr = plt.subplots(figsize=(8, 3.2))
+                dates = pd.to_datetime(trend_df['Tanggal'])
+                ax_tr.plot(
+                    dates, trend_df['Index'],
+                    marker='o', linewidth=2.5,
+                    color=PALETTE['primary_alt'],
+                    markersize=8,
+                    markerfacecolor=PALETTE['primary'],
+                    markeredgecolor='white',
+                    markeredgewidth=1.5,
+                )
+                ax_tr.axhline(y=50, color=PALETTE['net'], linestyle='--', alpha=0.5, label='Netral (50)')
+                ax_tr.fill_between(dates, 50, trend_df['Index'],
+                                   where=(trend_df['Index'] >= 50),
+                                   color=PALETTE['pos'], alpha=0.15, interpolate=True)
+                ax_tr.fill_between(dates, 50, trend_df['Index'],
+                                   where=(trend_df['Index'] < 50),
+                                   color=PALETTE['neg'], alpha=0.15, interpolate=True)
+                styled_axes(ax_tr)
+                ax_tr.set_ylim(0, 100)
+                ax_tr.set_ylabel('Indeks', fontsize=10)
+                ax_tr.grid(axis='y', linestyle='--', alpha=0.3)
+                ax_tr.legend(loc='upper right', frameon=False, fontsize=9)
+                fig_tr.tight_layout()
+                st.pyplot(fig_tr)
+                plt.close(fig_tr)
+            else:
+                st.info("Data tanggal tidak cukup untuk membuat tren 7 hari.")
+
+    with tr7_col2:
+        with st.container(border=True):
+            st.markdown("##### 🔥 **News Velocity (Kecepatan Publikasi per Jam)**")
+            _render_news_velocity_block(df)
 
 # =====================================================================
 # KELOMPOK 4: Risk Score per Trigger

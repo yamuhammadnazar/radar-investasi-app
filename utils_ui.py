@@ -302,6 +302,82 @@ SHARED_CSS = """
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }
     }
+
+    /* ===========================================================
+       MOBILE RESPONSIVE (max-width: 768px)
+       - Stack semua kolom horizontal jadi vertikal (jangan side-by-side
+         yang sempit) untuk News Velocity dan metric cards
+       - Perkecil font heading & padding agar tidak overflow horizontal
+       - Paksa data tabel & dataframe scrollable horizontal di mobile
+       =========================================================== */
+    @media (max-width: 768px) {
+        /* Heading lebih kecil agar muat di layar sempit */
+        .header-title,
+        .main-header h1,
+        .hero-title-box h1 {
+            font-size: 1.5rem !important;
+            line-height: 1.2 !important;
+        }
+        .main-header,
+        .header-card,
+        .sentiment-banner,
+        .hero-title-box {
+            padding: 1rem !important;
+            margin-bottom: 0.75rem !important;
+        }
+        /* Semua matplotlib & plot container responsif */
+        [data-testid="stArrowVegaLiteChart"],
+        [data-testid="stPlotlyChart"],
+        .stImage,
+        img {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+        /* Dataframe: jangan paksa full-width table menjadi terpotong kanan */
+        [data-testid="stDataFrame"] {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        [data-testid="stDataFrame"] table {
+            font-size: 0.78rem !important;
+        }
+        /* Metric cards lebih ringkas */
+        .metric-value {
+            font-size: 1.3rem !important;
+        }
+        .metric-label {
+            font-size: 0.65rem !important;
+        }
+        /* Insight card padding dikurangi */
+        .insight-card {
+            padding: 0.7rem 0.9rem !important;
+        }
+        /* Section header jangan terlalu besar */
+        .section-header {
+            font-size: 1.05rem !important;
+            margin-top: 1rem !important;
+        }
+        /* Tag container wrap */
+        .tag-container { flex-wrap: wrap !important; gap: 5px !important; }
+        .tag { font-size: 0.75rem !important; padding: 3px 9px !important; }
+        /* BUTTONS: full-width di mobile */
+        [data-testid="stButton"] > button {
+            width: 100% !important;
+        }
+        /* Tabs scrollable horizontal */
+        [data-testid="stTabs"] [role="tablist"] {
+            overflow-x: auto !important;
+            flex-wrap: nowrap !important;
+        }
+        /* Box info panel lebih ringkas */
+        .insight-card .insight-title {
+            font-size: 0.95rem !important;
+        }
+        .insight-card .insight-text {
+            font-size: 0.82rem !important;
+            line-height: 1.4 !important;
+        }
+    }
 </style>
 """
 

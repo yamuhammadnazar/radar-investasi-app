@@ -17,6 +17,8 @@ from .cache import (
     init_cache_db,
     get_cache_stats,
     cache_clear_expired,
+    cache_get_parsed,
+    cache_set_parsed,
 )
 from .http_client import get_http_session, safe_request, safe_post
 from .portals import aturan_portal
@@ -47,6 +49,8 @@ __all__ = [
     "init_cache_db",
     "get_cache_stats",
     "cache_clear_expired",
+    "cache_get_parsed",
+    "cache_set_parsed",
     # http
     "get_http_session",
     "safe_request",

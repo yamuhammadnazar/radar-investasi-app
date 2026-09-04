@@ -28,6 +28,7 @@ import time
 import re
 import gc
 from datetime import datetime, timedelta
+from functools import lru_cache
 from dateutil import parser as date_parser
 from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -46,7 +47,31 @@ from utils import (
     TelegramConfig,
     test_connection,
 )
+# Import cache parsed layer (skip seluruh proses scrape+parse pada hit kedua untuk link yang sama)
+try:
+    from utils.cache import cache_get_parsed, cache_set_parsed  # noqa: F401
+except Exception:  # pragma: no cover - fallback aman bila modul tersedia tanpa cache parsed
+    cache_get_parsed = None
+    cache_set_parsed = None
+
 from utils.scraper import HALT_FAILURE_RATIO, HALT_MIN_SAMPLE  # noqa: F401  (dipertahankan untuk kompatibilitas, fitur tidak digunakan)
+
+# Adaptive concurrency hint: portal besar diberi worker lebih sedikit agar tidak kena rate-limit
+DOMAIN_WORKER_HINT = {
+    "detik": 5, "kompas": 5, "cnbcindonesia": 4,
+    "kontan": 4, "tempo.co": 6, "katadata": 8,
+    "cnn": 5, "liputan6": 5, "kumparan": 6,
+    "idnfinancials": 6, "antaranews": 6,
+}
+
+
+def get_adaptive_workers(nama_portal: str, max_workers: int) -> int:
+    """Turunkan worker untuk portal yang rentan rate-limit (bertemu max_workers limit)."""
+    key = nama_portal.lower()
+    for domain, hint in DOMAIN_WORKER_HINT.items():
+        if domain in key:
+            return min(hint, max_workers)
+    return max_workers
 
 
 # ============================================================
@@ -101,7 +126,7 @@ KATEGORI_PORTOFOLIO = {
     "REGULASI": [
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
-        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konsitusi"
+        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konstitusi", "Mahkamah Konsitusi"
         "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat","ngabang","kalbar",
     ],
     "UMUM": [
@@ -215,6 +240,7 @@ def tentukan_kategori_aset(teks_lower):
     return "MAKRO_REGULASI"
 
 
+@lru_cache(maxsize=4096)
 def bersihkan_judul(judul):
     j = re.sub(r'[^a-zA-Z0-9\s]', '', judul.lower())
     j = re.sub(
@@ -223,6 +249,19 @@ def bersihkan_judul(judul):
     )
     kata_inti = [kata for kata in j.split() if kata not in STOPWORDS_ID]
     return " ".join(kata_inti).strip()
+
+
+def sort_entries_by_recency(entries: list) -> list:
+    """Sort RSS entry paling baru dulu. Yang datetime.min taruh di akhir."""
+    def parse_dt(entry):
+        t = entry.get("published", "") or entry.get("updated", "")
+        if not t or t == 'N/A':
+            return datetime.min
+        try:
+            return date_parser.parse(t)
+        except Exception:
+            return datetime.min
+    return sorted(entries, key=parse_dt, reverse=True)
 
 
 def rasio_kemiripan(a, b):
@@ -282,6 +321,11 @@ def process_entry(
     link = entry.get("link", "N/A")
     tanggal = entry.get("published", "") or entry.get("updated", "N/A")
     deskripsi = entry.get("summary", "") + " " + entry.get("description", "")
+
+    # OPTIMASI #1 (pra-scrape skip): entry tanpa judul/link valid di-skip
+    # sebelum mem-build teks_pencocokan atau scrape_artikel().
+    if not judul or judul == "N/A" or not link or link == "N/A":
+        return None
 
     # OPTIMASI: Filter kata kunci portofolio DULU (cepat, regex pre-compiled)
     # sebelum scrape body artikel (lambat). Mencegah scrape artikel yang
@@ -438,10 +482,26 @@ st.markdown("""
             box-shadow: 0 4px 12px rgba(35, 134, 54, 0.5) !important;
         }
         @media (max-width: 768px) {
-            .header-title { font-size: 1.8rem !important; }
-            .header-card { padding: 1.2rem !important; }
-            .tag-container { flex-wrap: wrap !important; gap: 6px !important; }
-            .metric-card { margin-bottom: 10px !important; }
+            .header-title { font-size: 1.6rem !important; line-height: 1.2; }
+            .header-card { padding: 1rem !important; }
+            .header-subtitle { font-size: 0.95rem !important; }
+            .tag-container { flex-wrap: wrap !important; gap: 5px !important; }
+            .tag { font-size: 0.72rem !important; padding: 3px 8px !important; }
+            .metric-card { margin-bottom: 10px !important; padding: 12px !important; }
+            .metric-value { font-size: 1.3rem !important; }
+            .metric-label { font-size: 0.62rem !important; letter-spacing: 0.8px; }
+            /* Dataframe jangan overflow di mobile */
+            [data-testid="stDataFrame"] { overflow-x: auto !important; }
+            [data-testid="stDataFrame"] table { font-size: 0.78rem !important; }
+            /* Buttons full-width */
+            [data-testid="stButton"] > button { width: 100% !important; }
+            /* Plot container responsif */
+            [data-testid="stPlotlyChart"], img { max-width: 100% !important; height: auto !important; }
+            /* Tabs scrollable horizontal */
+            [data-testid="stTabs"] [role="tablist"] {
+                overflow-x: auto !important;
+                flex-wrap: nowrap !important;
+            }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -720,8 +780,14 @@ if tombol_scan:
                     continue
 
                 # Batasi jumlah entry yang akan diproses
-                target_entries = list(feed.entries)[:max_artikel_per_portal]
+                # OPTIMASI #6: sort by recency (entry terbaru diproses duluan),
+                # sehingga hasil yang lolos filter waktu tampil lebih awal (progressive rendering).
+                target_entries = sort_entries_by_recency(list(feed.entries))[:max_artikel_per_portal]
                 session = get_http_session()
+
+                # OPTIMASI #3: adaptive worker untuk portal rentan rate-limit.
+                # Portal besar (Detik, Kompas, CNBC) pakai worker lebih sedikit.
+                effective_workers = get_adaptive_workers(nama_portal, max_workers)
 
                 # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal.
                 # FITUR HENTI DINI DINONAKTIFKAN — semua entry akan diproses
@@ -731,7 +797,7 @@ if tombol_scan:
                 failed_count = 0
 
                 # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                with ThreadPoolExecutor(max_workers=effective_workers) as executor:
                     # Submit semua entry
                     future_to_entry = {
                         executor.submit(

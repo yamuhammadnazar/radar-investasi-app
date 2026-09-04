@@ -19,6 +19,18 @@ CACHE_LOCK = _Lock()
 # TTL default: 1 jam untuk feed, 6 jam untuk artikel (artikel lebih stabil)
 DEFAULT_FEED_TTL = 3600
 DEFAULT_ARTICLE_TTL = 21600
+# TTL khusus parsed article: skip langkah BeautifulSoup+regex pada hit kedua
+DEFAULT_PARSED_TTL = 21600
+
+
+def cache_get_parsed(link: str):
+    """Shortcut untuk cache parsed article (prefix='parsed')."""
+    return cache_get("parsed", link)
+
+
+def cache_set_parsed(link: str, payload, ttl: int = DEFAULT_PARSED_TTL) -> bool:
+    """Shortcut untuk simpan hasil scrape+parse ke cache."""
+    return cache_set("parsed", link, payload, ttl=ttl)
 
 
 def init_cache_db() -> None:
