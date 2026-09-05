@@ -130,9 +130,59 @@ KATEGORI_PORTOFOLIO = {
         "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konstitusi",
         "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "ngabang", "kalbar",
     ],
+    "TEKNOLOGI": [
+        "teknologi", "technology", "startup", "unicorn", "decacorn",
+        "kecerdasan buatan", "artificial intelligence", "ai", "chatgpt", "gpt",
+        "machine learning", "deep learning", "llm", "model bahasa",
+        "semikonduktor", "chip", "nvidia", "tsmc", "asml",
+        "kripto", "cryptocurrency", "bitcoin", "ethereum", "blockchain", "web3",
+        "fintech", "paylater", "dompet digital", "e-wallet",
+        "e-commerce", "marketplace", "tokopedia", "shopee", "bukalapak",
+        "listrik kendaraan", "kendaraan listrik", "ev", "baterai litium",
+        "data center", "pusat data", "cloud", "cloud computing", "aws",
+        "5g", "jaringan 5g", "satelit", "starlink",
+        "siber", "keamanan siber", "cybersecurity", "ransomware", "peretasan",
+        "smartphone", "gadget", "aplikasi", "apps", "platform digital",
+        "meta", "google", "alphabet", "microsoft", "apple", "openai", "bytedance",
+        "metaverse", "augmented reality", "virtual reality", "ar/vr",
+        "big data", "analitik data", "internet of things", "iot",
+        "sistem operasi", "perangkat lunak", "software", "saas",
+        "transformasi digital", "digitalisasi", "ekonomi digital",
+        "GoTo", "Gojek", "Grab", "Traveloka", "Bukalapak",
+        "industri kreatif digital", "penjualan daring", "online shopping",
+        "penipuan daring", "penipuan online", "judi online"
+    ],
+    "LUAR_NEGERI": [
+        "luar negeri", "global market", "pasar global", "global index", "global indices",
+        "wall street", "new york stock exchange", "nyse", "nasdaq", "dow jones",
+        "s&p 500", "sp500", "russell 2000", "vix", "fear and greed",
+        "nikkei", "nikkei 225", "topix", "bursa jepang", "bursa tokyo",
+        "hang seng", "hsi", "bursa hong kong",
+        "shanghai composite", "sse", "szse", "bursa tiongkok", "bursa shanghai", "bursa shenzhen",
+        "kospi", "bursa korea", "bursa selatan",
+        "straits times", "sti", "bursa singapura", "sgx",
+        "ftse 100", "bursa london", "london stock exchange", "lse",
+        "dax", "bursa jerman", "bursa frankfurt",
+        "cac 40", "bursa prancis", "bursa paris",
+        "eurostoxx", "stoxx 600", "bursa eropa", "euronext",
+        "asx 200", "bursa australia",
+        "bse sensex", "nifty 50", "bursa india",
+        "bursa thailand", "set index", "bursa filipina", "psei",
+        "bursa vietnam", "bursa malaysia", "bursa indonesia",
+        "emerging market", "pasar berkembang", "em market",
+        "foreign exchange", "forex", "fx", "mata uang asing",
+        "eur/usd", "usd/jpy", "usd/cny", "usd/sgd", "gbp/usd",
+        "offshore", "capital outflow", "capital inflow", "foreign investment",
+        "multi national company", "multinational", "mnc",
+        "economic data", "manufacturing pmi", "services pmi",
+        "trade deficit", "trade surplus", "tariff", "bea masuk",
+        "apple", "microsoft", "nvidia", "tesla", "amazon", "meta", "google",
+        "berita luar negeri", "berita internasional", "internasional",
+        "inflasi global", "resesi global", "pertumbuhan global", "global growth"
+    ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
-        "Indeks", "Bencana", "Anime", "Game","teknologi"
+        "Indeks", "Bencana", "Anime", "Game"
     ]
 }
 
@@ -245,6 +295,10 @@ def tentukan_kategori_aset(teks_lower):
                     return "EMAS_KOMODITAS"
                 if kat in ("MAKRO_INDONESIA", "MAKRO_GLOBAL", "REGULASI"):
                     return "MAKRO_REGULASI"
+                if kat == "TEKNOLOGI":
+                    return "TEKNOLOGI"
+                if kat == "LUAR_NEGERI":
+                    return "LUAR_NEGERI"
                 if kat == "UMUM":
                     return "UMUM"
     return "MAKRO_REGULASI"
