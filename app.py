@@ -63,6 +63,10 @@ DOMAIN_WORKER_HINT = {
     "kontan": 4, "tempo.co": 6, "katadata": 8,
     "cnn": 5, "liputan6": 5, "kumparan": 6,
     "idnfinancials": 6, "antaranews": 6,
+    "tribunnews": 5, "okezone": 5, "republika": 6,
+    "jawapos": 6, "merdeka": 6, "pikiran-rakyat": 6,
+    "bisnis.com": 5, "metrotvnews": 6, "tvonenews": 6,
+    "suara.com": 7, "trenasia": 8, "wartaekonomi": 8,
 }
 
 

@@ -236,6 +236,300 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
 
+    # ---- Kategori: Ekonomi & Bisnis Tambahan ----
+    "Okezone Finance": {
+        "rss_asli": "https://economy.okezone.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:economy.okezone.com+OR+site:finance.okezone.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Republika (Ekonomi)": {
+        "rss_asli": "https://www.republika.co.id/rss/ekonomi",
+        "rss_google": "https://news.google.com/rss/search?q=site:republika.co.id/ekonomi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Jawa Pos (Bisnis)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:jawapos.com+bisnis+OR+ekonomi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Bisnis Indonesia (Saham)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:market.bisnis.com+saham&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "details-content", "butuh_page_all": False
+    },
+    "Kedaulatan Rakyat (Bisnis)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:krjogja.com+bisnis+OR+ekonomi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Suara Bisnis": {
+        "rss_asli": "https://bisnis.suara.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:bisnis.suara.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Merdeka (Ekonomi)": {
+        "rss_asli": "https://www.merdeka.com/rss/ekonomi.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:merdeka.com/ekonomi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Astha Techno": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:astha.id+teknologi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "entry-content", "butuh_page_all": False
+    },
+
+    # ---- Kategori: Teknologi Tambahan ----
+    "Liputan6 (Tekno)": {
+        "rss_asli": "https://www.liputan6.com/rss/tekno",
+        "rss_google": "https://news.google.com/rss/search?q=site:liputan6.com/tekno&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content-body__item", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Suara (Teknologi)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:suara.com+teknologi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Merdeka (Teknologi)": {
+        "rss_asli": "https://www.merdeka.com/rss/teknologi.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:merdeka.com/teknologi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Okezone (Techno)": {
+        "rss_asli": "https://techno.okezone.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:techno.okezone.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Kompasiana (Teknologi)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kompasiana.com+teknologi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read-content", "butuh_page_all": False
+    },
+    "Detik (Inet)": {
+        "rss_asli": "https://rss.detik.com/index.php/inet",
+        "rss_google": "https://news.google.com/rss/search?q=site:inet.detik.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True,
+        "tanggal_terpercaya": True
+    },
+    "Tempo (Inet)": {
+        "rss_asli": "https://rss.tempo.co/inet",
+        "rss_google": "https://news.google.com/rss/search?q=site:inet.tempo.co&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+
+    # ---- Kategori: Luar Negeri / Internasional Tambahan ----
+    "Detik (Internasional)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:detik.com+internasional+OR+news+OR+dunia&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+    },
+    "Kompas (Internasional)": {
+        "rss_asli": "https://www.kompas.com/rss/internasional.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:www.kompas.com+internasional+OR+global&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True,
+        "tanggal_terpercaya": True
+    },
+    "Liputan6 (Global)": {
+        "rss_asli": "https://www.liputan6.com/rss/global",
+        "rss_google": "https://news.google.com/rss/search?q=site:liputan6.com/global&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content-body__item", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Republika (Global)": {
+        "rss_asli": "https://www.republika.co.id/rss/global",
+        "rss_google": "https://news.google.com/rss/search?q=site:republika.co.id/global&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Okezone (World)": {
+        "rss_asli": "https://www.okezone.com/rss/world",
+        "rss_google": "https://news.google.com/rss/search?q=site:okezone.com/world&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Merdeka (Internasional)": {
+        "rss_asli": "https://www.merdeka.com/rss/internasional.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:merdeka.com/internasional&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+
+    # ---- Kategori: Saham & Investasi Khusus ----
+    "Bisnis (Saham)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:market.bisnis.com+saham&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "details-content", "butuh_page_all": False
+    },
+    "Kontan (Investasi)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:investasi.kontan.co.id+saham+OR+reksadana&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
+    },
+    "PajakKu": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:pajakku.com+OR+site:pajak.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "entry-content", "butuh_page_all": False
+    },
+    "DPR (Media)": {
+        "rss_asli": "https://www.dpr.go.id/jurnal/rss.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:dpr.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+
+    # ---- Kategori: Energi & Komoditas ----
+    "CNBC Indonesia (Energy)": {
+        "rss_asli": "https://www.cnbcindonesia.com/energy/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/energy&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail_text", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Katadata (Energi)": {
+        "rss_asli": "https://katadata.co.id/rss/energi",
+        "rss_google": "https://news.google.com/rss/search?q=site:katadata.co.id+energi+OR+minyak+OR+batubara&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-body", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Bisnis (Energy)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:bisnis.com/energi&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "details-content", "butuh_page_all": False
+    },
+    "Detik (Properti)": {
+        "rss_asli": "https://rss.detik.com/index.php/properti",
+        "rss_google": "https://news.google.com/rss/search?q=site:properti.detik.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True,
+        "tanggal_terpercaya": True
+    },
+
+    # ---- Kategori: Umum / Nasional ----
+    "Kompas (Nasional)": {
+        "rss_asli": "https://www.kompas.com/rss/nasional.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:www.kompas.com+nasional&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True,
+        "tanggal_terpercaya": True
+    },
+    "CNN Indonesia (Nasional)": {
+        "rss_asli": "https://www.cnnindonesia.com/nasional/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnnindonesia.com/nasional&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail_text", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Tempo (Nasional)": {
+        "rss_asli": "https://rss.tempo.co/nasional",
+        "rss_google": "https://news.google.com/rss/search?q=site:tempo.co/nasional&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Antara (Nasional)": {
+        "rss_asli": "https://www.antaranews.com/rss/topnews.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True,
+        "tanggal_terpercaya": True
+    },
+    "Republika (Nasional)": {
+        "rss_asli": "https://www.republika.co.id/rss/berita",
+        "rss_google": "https://news.google.com/rss/search?q=site:republika.co.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Jawa Pos (Nasional)": {
+        "rss_asli": "https://www.jawapos.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:jawapos.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Tribunnews": {
+        "rss_asli": "https://www.tribunnews.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:tribunnews.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Suara (Nasional)": {
+        "rss_asli": "https://www.suara.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:suara.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Okezone (News)": {
+        "rss_asli": "https://www.okezone.com/rss/news",
+        "rss_google": "https://news.google.com/rss/search?q=site:okezone.com/news&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+
+    # ---- Kategori: Pemerintahan / Regulasi ----
+    "Kemenkeu Go ID": {
+        "rss_asli": "https://www.kemenkeu.go.id/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:kemenkeu.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "post-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Bank Indonesia": {
+        "rss_asli": "https://www.bi.go.id/rss/berita",
+        "rss_google": "https://news.google.com/rss/search?q=site:bi.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "OJK": {
+        "rss_asli": "https://www.ojk.go.id/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:ojk.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Bursa Efek Indonesia (IDX)": {
+        "rss_asli": "https://www.idx.co.id/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:idx.co.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+
+    # ---- Kategori: BUMN & Korporasi ----
+    "BUMN Track": {
+        "rss_asli": "https://www.bumntrack.com/feed",
+        "rss_google": "https://news.google.com/rss/search?q=site:bumntrack.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "entry-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Kontan (BUMN)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kontan.co.id+bumn&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
+    },
+
+    # ---- Kategori: Regional / Lokal ----
+    "Pikiran Rakyat": {
+        "rss_asli": "https://www.pikiran-rakyat.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:pikiran-rakyat.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Kedaulatan Rakyat": {
+        "rss_asli": "https://www.krjogja.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:krjogja.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Tribunnews Jabar": {
+        "rss_asli": "https://jabar.tribunnews.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:jabar.tribunnews.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Tribunnews Jatim": {
+        "rss_asli": "https://jatim.tribunnews.com/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:jatim.tribunnews.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+
     "Landak Pusat Informasi (Blogger)": {
         # Portal berita lokal Kalbar (Kab. Landak) berbasis template Blogger/EvoMagz.
         # Feed Blogger default: /feeds/posts/default?alt=rss (RSS 2.0 + Atom 1.0)
