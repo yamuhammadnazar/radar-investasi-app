@@ -132,7 +132,7 @@ KATEGORI_PORTOFOLIO = {
     ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
-        "Indeks", "Bencana", "Anime", "Game",
+        "Indeks", "Bencana", "Anime", "Game","teknologi"
     ]
 }
 
