@@ -857,6 +857,9 @@ if tombol_scan:
         # Statistik kegagalan per-portal (untuk laporan akhir)
         portal_failure_counts: dict[str, int] = {}
         portal_halted_flags: dict[str, bool] = {}
+        # FIX: simpan alasan kegagalan feed per-portal untuk laporan diagnostik akhir.
+        portal_feed_errors: dict[str, str] = {}
+        portal_entry_counts: dict[str, tuple[int, int]] = {}  # (diproses, gagal)
 
         for idx, nama_portal in enumerate(portal_terpilih):
             elapsed_time = round(time.time() - start_time, 1)
@@ -879,6 +882,8 @@ if tombol_scan:
                 if not feed or not hasattr(feed, "entries") or len(feed.entries) == 0:
                     progress_bar.progress((idx + 1) / total_portal)
                     portal_failure_counts[nama_portal] = portal_failure_counts.get(nama_portal, 0) + 1
+                    # FIX: catat alasan kegagalan feed untuk laporan diagnostik.
+                    portal_feed_errors[nama_portal] = aturan.get("__feed_error", "feed kosong / 0 entry")
                     continue
 
                 # Batasi jumlah entry yang akan diproses
@@ -929,6 +934,7 @@ if tombol_scan:
 
                 portal_failure_counts[nama_portal] = failed_count
                 portal_halted_flags[nama_portal] = False
+                portal_entry_counts[nama_portal] = (processed_count, failed_count)
 
                 # Update progress
                 progress_bar.progress((idx + 1) / total_portal)
@@ -955,6 +961,7 @@ if tombol_scan:
                 status_text.text(f"❌ Portal {nama_portal} dilewati karena error: {str(portal_err)[:100]}")
                 portal_failure_counts[nama_portal] = -1
                 portal_halted_flags[nama_portal] = False
+                portal_feed_errors[nama_portal] = f"exception: {type(portal_err).__name__}: {str(portal_err)[:80]}"
                 progress_bar.progress((idx + 1) / total_portal)
                 continue
 
@@ -1026,6 +1033,65 @@ if tombol_scan:
             st.success(success_msg)
         else:
             st.warning("Tidak ada berita yang sesuai dengan kriteria waktu & kata kunci portofolio.")
+
+        # ============================================================
+        # LAPORAN DIAGNOSTIK PORTAL GAGAL (FIX)
+        # ============================================================
+        # Tampilkan portal mana yang gagal + alasannya agar user tahu
+        # penyebab dan bisa mengambil tindakan (mis. ganti VPN, update URL, dll).
+        # Sumber alasan: aturan['__feed_error'] yang diisi oleh dapatkan_feed_rss().
+        portal_gagal_feed = [p for p, c in portal_failure_counts.items() if c != 0 and p not in portal_entry_counts]
+        portal_gagal_artikel = {
+            p: (proc, fail) for p, (proc, fail) in portal_entry_counts.items() if fail > 0
+        }
+        total_gagal_feed = len(portal_gagal_feed)
+        total_berhasil = len([p for p in portal_failure_counts if p not in portal_gagal_feed and portal_failure_counts[p] == 0])
+
+        if total_gagal_feed > 0 or portal_gagal_artikel:
+            with st.expander(
+                f"📋 Laporan Diagnostik Portal ({total_berhasil} berhasil, "
+                f"{total_gagal_feed} gagal feed, {len(portal_gagal_artikel)} ada artikel gagal)",
+                expanded=False
+            ):
+                if total_gagal_feed > 0:
+                    st.markdown(f"**❌ Portal gagal mengambil feed ({total_gagal_feed}):**")
+                    rows = []
+                    for p in portal_gagal_feed:
+                        alasan = portal_feed_errors.get(p, "tidak diketahui")
+                        rows.append({"Portal": p, "Alasan Kegagalan": alasan})
+                    st.dataframe(rows, use_container_width=True, hide_index=True)
+                    st.caption(
+                        "ℹ️ Kegagalan feed umumnya karena: (1) URL RSS portal berubah/hilang, "
+                        "(2) portal memasang Cloudflare/anti-bot (403), (3) subdomain RSS sudah di-shutdown, "
+                        "atau (4) masalah SSL/TLS sementara. Sistem otomatis fallback ke Google News RSS; "
+                        "jika dua-duanya gagal, portal dilewati sesi ini."
+                    )
+                if portal_gagal_artikel:
+                    st.markdown(f"**⚠️ Portal dengan sebagian artikel gagal di-scrape ({len(portal_gagal_artikel)}):**")
+                    rows2 = []
+                    for p, (proc, fail) in portal_gagal_artikel.items():
+                        rate = round((fail / proc) * 100, 1) if proc else 0
+                        rows2.append({
+                            "Portal": p,
+                            "Artikel Diproses": proc,
+                            "Artikel Gagal": fail,
+                            "Tingkat Gagal (%)": rate,
+                        })
+                    st.dataframe(rows2, use_container_width=True, hide_index=True)
+                    st.caption(
+                        "ℹ️ Kegagalan scraping artikel biasanya transient: rate-limit server (429), "
+                        "timeout koneksi, atau halaman anti-bot. Sistem sudah retry 3x per artikel; "
+                        "jika masih gagal, coba ulang pemindaian beberapa menit kemudian."
+                    )
+
+        # Simpan statistik diagnostik ke session state untuk halaman lain.
+        st.session_state["portal_diagnostik"] = {
+            "portal_gagal_feed": portal_gagal_feed,
+            "portal_feed_errors": portal_feed_errors,
+            "portal_entry_counts": portal_entry_counts,
+            "total_berhasil": total_berhasil,
+            "total_gagal_feed": total_gagal_feed,
+        }
 
         # Final cleanup
         gc.collect()

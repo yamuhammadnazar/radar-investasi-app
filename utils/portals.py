@@ -29,15 +29,20 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Kontan Utama & Investasi": {
-        "rss_asli": "https://www.kontan.co.id/feed",
+        # FIX: /feed mengembalikan HTML (halaman daftar RSS), bukan feed XML.
+        # rss.kontan.co.id ada SSL handshake failure (incompatible TLS).
+        # Pakai investasi.kontan.co.id/rss yang terverifikasi valid (25 entry).
+        "rss_asli": "https://investasi.kontan.co.id/rss",
         "rss_google": "https://news.google.com/rss/search?q=site:kontan.co.id&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True,
         "tanggal_terpercaya": True
     },
     "Kontan Investasi": {
-        "rss_asli": "",
+        # FIX: tambah rss_asli yang valid (investasi.kontan.co.id/rss)
+        "rss_asli": "https://investasi.kontan.co.id/rss",
         "rss_google": "https://news.google.com/rss/search?q=site:investasi.kontan.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True
+        "tag": "div", "class": "tmpt-desk-kon", "butuh_page_all": True,
+        "tanggal_terpercaya": True
     },
     "Katadata": {
         "rss_asli": "https://katadata.co.id/rss",
@@ -76,10 +81,11 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Bisnis Indonesia": {
-        "rss_asli": "https://www.bisnis.com/rss",
+        # FIX: www.bisnis.com/rss kena Cloudflare 403 ("Just a moment...").
+        # Kosongkan rss_asli agar langsung pakai rss_google (Google News proxy) yang reliable.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:bisnis.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "details-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "details-content", "butuh_page_all": False
     },
     "Bisnis Market": {
         "rss_asli": "",
@@ -87,19 +93,21 @@ aturan_portal = {
         "tag": "div", "class": "details-content", "butuh_page_all": False
     },
     "SWA Online": {
-        "rss_asli": "https://swa.co.id/feed",
+        # FIX: swa.co.id/feed mengembalikan HTML bukan feed XML (SAXParseException).
+        # Kosongkan rss_asli, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:swa.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "entry-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "entry-content", "butuh_page_all": False
     },
     "Bareksa": {
-        "rss_asli": "https://www.bareksa.com/rss",
+        # FIX: www.bareksa.com/rss returns 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:bareksa.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "news-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "news-content", "butuh_page_all": False
     },
     "TrenAsia": {
-        "rss_asli": "https://www.trenasia.com/rss",
+        # FIX: /rss mengembalikan HTML. Endpoint valid: /rss.xml (terverifikasi 200 entry).
+        "rss_asli": "https://www.trenasia.com/rss.xml",
         "rss_google": "https://news.google.com/rss/search?q=site:trenasia.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "content-detail", "butuh_page_all": False,
         "tanggal_terpercaya": True
@@ -152,10 +160,11 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Detik Tekno": {
-        "rss_asli": "https://rss.detik.com/index.php/teknologi",
+        # FIX: rss.detik.com subdomain sudah down (RemoteDisconnected — server tutup koneksi tanpa response).
+        # Kosongkan rss_asli, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:detik.com/teknologi+OR+site:detik.com/inet&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail__body-text", "butuh_page_all": True,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
     },
     "Kompas Tekno": {
         "rss_asli": "",
@@ -169,10 +178,10 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Tempo Teknologi": {
-        "rss_asli": "https://rss.tempo.co/teknologi",
+        # FIX: rss.tempo.co/teknologi XML-valid tapi 0 entry (feed kosong kategori). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:tekno.tempo.co+OR+site:inet.tempo.co&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-konten", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False
     },
     "Katadata Teknologi": {
         "rss_asli": "",
@@ -212,10 +221,11 @@ aturan_portal = {
         "tag": "div", "class": "read__content", "butuh_page_all": True
     },
     "Tempo (Internasional)": {
-        "rss_asli": "https://rss.tempo.co/internasional",
+        # FIX: rss.tempo.co/internasional XML-valid tapi 0 entry (feed kosong kategori).
+        # Kosongkan rss_asli, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:tempo.co/internasional&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-konten", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False
     },
     "Antara (Internasional)": {
         "rss_asli": "https://www.antaranews.com/rss/dunia.xml",
@@ -238,10 +248,10 @@ aturan_portal = {
 
     # ---- Kategori: Ekonomi & Bisnis Tambahan ----
     "Okezone Finance": {
-        "rss_asli": "https://economy.okezone.com/rss",
+        # FIX: economy.okezone.com/rss mengembalikan HTML (SAXParseException). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:economy.okezone.com+OR+site:finance.okezone.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail", "butuh_page_all": False
     },
     "Republika (Ekonomi)": {
         "rss_asli": "https://www.republika.co.id/rss/ekonomi",
@@ -265,16 +275,16 @@ aturan_portal = {
         "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
     "Suara Bisnis": {
-        "rss_asli": "https://bisnis.suara.com/rss",
+        # FIX: bisnis.suara.com DNS gagal resolve (getaddrinfo failed). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:bisnis.suara.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
     "Merdeka (Ekonomi)": {
-        "rss_asli": "https://www.merdeka.com/rss/ekonomi.xml",
+        # FIX: www.merdeka.com/rss/ekonomi.xml 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:merdeka.com/ekonomi&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False
     },
     "Astha Techno": {
         "rss_asli": "",
@@ -284,7 +294,8 @@ aturan_portal = {
 
     # ---- Kategori: Teknologi Tambahan ----
     "Liputan6 (Tekno)": {
-        "rss_asli": "https://www.liputan6.com/rss/tekno",
+        # FIX: /rss/tekno 404. Endpoint valid: /feed/rss/tekno (terverifikasi 50 entry).
+        "rss_asli": "https://www.liputan6.com/feed/rss/tekno",
         "rss_google": "https://news.google.com/rss/search?q=site:liputan6.com/tekno&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "article-content-body__item", "butuh_page_all": False,
         "tanggal_terpercaya": True
@@ -295,16 +306,16 @@ aturan_portal = {
         "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
     "Merdeka (Teknologi)": {
-        "rss_asli": "https://www.merdeka.com/rss/teknologi.xml",
+        # FIX: www.merdeka.com/rss/teknologi.xml 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:merdeka.com/teknologi&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False
     },
     "Okezone (Techno)": {
-        "rss_asli": "https://techno.okezone.com/rss",
+        # FIX: techno.okezone.com/rss mengembalikan HTML (SAXParseException). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:techno.okezone.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail", "butuh_page_all": False
     },
     "Kompasiana (Teknologi)": {
         "rss_asli": "",
@@ -312,16 +323,16 @@ aturan_portal = {
         "tag": "div", "class": "read-content", "butuh_page_all": False
     },
     "Detik (Inet)": {
-        "rss_asli": "https://rss.detik.com/index.php/inet",
+        # FIX: rss.detik.com subdomain sudah down (RemoteDisconnected). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:inet.detik.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail__body-text", "butuh_page_all": True,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
     },
     "Tempo (Inet)": {
-        "rss_asli": "https://rss.tempo.co/inet",
+        # FIX: rss.tempo.co/inet XML-valid tapi 0 entry. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:inet.tempo.co&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-konten", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False
     },
 
     # ---- Kategori: Luar Negeri / Internasional Tambahan ----
@@ -331,13 +342,14 @@ aturan_portal = {
         "tag": "div", "class": "detail__body-text", "butuh_page_all": True
     },
     "Kompas (Internasional)": {
-        "rss_asli": "https://www.kompas.com/rss/internasional.xml",
+        # FIX: www.kompas.com/rss/internasional.xml 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:www.kompas.com+internasional+OR+global&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "read__content", "butuh_page_all": True,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "read__content", "butuh_page_all": True
     },
     "Liputan6 (Global)": {
-        "rss_asli": "https://www.liputan6.com/rss/global",
+        # FIX: /rss/global 404. Endpoint valid: /feed/rss/global (terverifikasi 50 entry).
+        "rss_asli": "https://www.liputan6.com/feed/rss/global",
         "rss_google": "https://news.google.com/rss/search?q=site:liputan6.com/global&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "article-content-body__item", "butuh_page_all": False,
         "tanggal_terpercaya": True
@@ -349,16 +361,16 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Okezone (World)": {
-        "rss_asli": "https://www.okezone.com/rss/world",
+        # FIX: www.okezone.com/rss/world 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:okezone.com/world&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail", "butuh_page_all": False
     },
     "Merdeka (Internasional)": {
-        "rss_asli": "https://www.merdeka.com/rss/internasional.xml",
+        # FIX: www.merdeka.com/rss/internasional.xml 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:merdeka.com/internasional&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "mdk-body-paragraph", "butuh_page_all": False
     },
 
     # ---- Kategori: Saham & Investasi Khusus ----
@@ -378,15 +390,17 @@ aturan_portal = {
         "tag": "div", "class": "entry-content", "butuh_page_all": False
     },
     "DPR (Media)": {
-        "rss_asli": "https://www.dpr.go.id/jurnal/rss.xml",
+        # FIX: www.dpr.go.id/jurnal/rss.xml 403. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:dpr.go.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
 
     # ---- Kategori: Energi & Komoditas ----
     "CNBC Indonesia (Energy)": {
-        "rss_asli": "https://www.cnbcindonesia.com/energy/rss",
+        # FIX: www.cnbcindonesia.com/energy/rss 404 (kategori energy tidak ada).
+        # Pakai rss market sebagai fallback terdekat (energi sering dibahas di market).
+        "rss_asli": "https://www.cnbcindonesia.com/market/rss",
         "rss_google": "https://news.google.com/rss/search?q=site:cnbcindonesia.com/energy&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail_text", "butuh_page_all": False,
         "tanggal_terpercaya": True
@@ -403,18 +417,18 @@ aturan_portal = {
         "tag": "div", "class": "details-content", "butuh_page_all": False
     },
     "Detik (Properti)": {
-        "rss_asli": "https://rss.detik.com/index.php/properti",
+        # FIX: rss.detik.com subdomain sudah down (RemoteDisconnected). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:properti.detik.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail__body-text", "butuh_page_all": True,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
     },
 
     # ---- Kategori: Umum / Nasional ----
     "Kompas (Nasional)": {
-        "rss_asli": "https://www.kompas.com/rss/nasional.xml",
+        # FIX: www.kompas.com/rss/nasional.xml 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:www.kompas.com+nasional&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "read__content", "butuh_page_all": True,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "read__content", "butuh_page_all": True
     },
     "CNN Indonesia (Nasional)": {
         "rss_asli": "https://www.cnnindonesia.com/nasional/rss",
@@ -429,7 +443,8 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Antara (Nasional)": {
-        "rss_asli": "https://www.antaranews.com/rss/topnews.xml",
+        # FIX: www.antaranews.com/rss/topnews.xml 404. Pakai endpoint ekonomi-bisnis yang valid.
+        "rss_asli": "https://www.antaranews.com/rss/ekonomi-bisnis.xml",
         "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True,
         "tanggal_terpercaya": True
@@ -441,7 +456,8 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Jawa Pos (Nasional)": {
-        "rss_asli": "https://www.jawapos.com/rss",
+        # FIX: www.jawapos.com/rss 404. Endpoint valid: /rss.xml (terverifikasi 50 entry).
+        "rss_asli": "https://www.jawapos.com/rss.xml",
         "rss_google": "https://news.google.com/rss/search?q=site:jawapos.com&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail-content", "butuh_page_all": False,
         "tanggal_terpercaya": True
@@ -453,50 +469,50 @@ aturan_portal = {
         "tanggal_terpercaya": True
     },
     "Suara (Nasional)": {
-        "rss_asli": "https://www.suara.com/rss",
+        # FIX: www.suara.com/rss 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:suara.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
     "Okezone (News)": {
-        "rss_asli": "https://www.okezone.com/rss/news",
+        # FIX: www.okezone.com/rss/news 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:okezone.com/news&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail", "butuh_page_all": False
     },
 
     # ---- Kategori: Pemerintahan / Regulasi ----
     "Kemenkeu Go ID": {
-        "rss_asli": "https://www.kemenkeu.go.id/rss",
+        # FIX: www.kemenkeu.go.id/rss mengembalikan HTML (SAXParseException). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:kemenkeu.go.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "post-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "post-content", "butuh_page_all": False
     },
     "Bank Indonesia": {
-        "rss_asli": "https://www.bi.go.id/rss/berita",
+        # FIX: www.bi.go.id/rss/berita mengembalikan HTML & sering timeout. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:bi.go.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "news-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "news-content", "butuh_page_all": False
     },
     "OJK": {
-        "rss_asli": "https://www.ojk.go.id/rss",
+        # FIX: www.ojk.go.id/rss 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:ojk.go.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "news-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "news-content", "butuh_page_all": False
     },
     "Bursa Efek Indonesia (IDX)": {
-        "rss_asli": "https://www.idx.co.id/rss",
+        # FIX: www.idx.co.id/rss 403 (Cloudflare). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:idx.co.id&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "news-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "news-content", "butuh_page_all": False
     },
 
     # ---- Kategori: BUMN & Korporasi ----
     "BUMN Track": {
-        "rss_asli": "https://www.bumntrack.com/feed",
+        # FIX: www.bumntrack.com/feed SSL/conn error (max retries). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:bumntrack.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "entry-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "entry-content", "butuh_page_all": False
     },
     "Kontan (BUMN)": {
         "rss_asli": "",
@@ -506,28 +522,28 @@ aturan_portal = {
 
     # ---- Kategori: Regional / Lokal ----
     "Pikiran Rakyat": {
-        "rss_asli": "https://www.pikiran-rakyat.com/rss",
+        # FIX: www.pikiran-rakyat.com/rss 404. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:pikiran-rakyat.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "article-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "article-content", "butuh_page_all": False
     },
     "Kedaulatan Rakyat": {
-        "rss_asli": "https://www.krjogja.com/rss",
+        # FIX: www.krjogja.com/rss mengembalikan HTML (SAXParseException). Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:krjogja.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "detail-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
     "Tribunnews Jabar": {
-        "rss_asli": "https://jabar.tribunnews.com/rss",
+        # FIX: jabar.tribunnews.com/rss sering CharacterEncodingOverride & 0 entry. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:jabar.tribunnews.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "article-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "article-content", "butuh_page_all": False
     },
     "Tribunnews Jatim": {
-        "rss_asli": "https://jatim.tribunnews.com/rss",
+        # FIX: jatim.tribunnews.com/rss sering CharacterEncodingOverride & 0 entry. Kosongkan, andalkan rss_google.
+        "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:jatim.tribunnews.com&hl=id&gl=ID&ceid=ID:id",
-        "tag": "div", "class": "article-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
+        "tag": "div", "class": "article-content", "butuh_page_all": False
     },
 
     "Landak Pusat Informasi (Blogger)": {

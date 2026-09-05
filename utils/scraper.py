@@ -31,11 +31,71 @@ SCRAPE_TIMEOUT = 7  # detik per artikel
 MAX_ARTIKEL_LEN = 8000  # batasi panjang teks untuk mencegah memory blow-up
 
 
+def _parse_feed_safely(content: bytes) -> object:
+    """
+    Parse feed dengan toleransi terhadap warning encoding/parse (bozo).
+
+    FIX: feedparser men-set bozo=True untuk masalah non-fatal seperti
+    CharacterEncodingOverride (Tribunnews) atau entitas HTML tak terurai.
+    Feed seperti itu SEBENARNYA masih punya entries dan bisa dipakai.
+    Fungsi ini mengembalikan feed meskipun bozo, selama ada entries.
+    """
+    feed = feedparser.parse(content)
+    # Jika bozo tapi ada entries, tetap kembalikan (warning tidak fatal).
+    if feed.bozo and hasattr(feed, "entries") and len(feed.entries) > 0:
+        return feed
+    # Jika bozo dan tidak ada entries, coba repair encoding umum lalu parse ulang.
+    if feed.bozo:
+        try:
+            # Beberapa feed mendeklarasikan encoding salah; paksa decode utf-8.
+            text = content.decode("utf-8", errors="replace")
+            feed2 = feedparser.parse(text.encode("utf-8"))
+            if hasattr(feed2, "entries") and len(feed2.entries) > 0:
+                return feed2
+            # Coba latin-1 sebagai fallback terakhir.
+            text2 = content.decode("latin-1", errors="replace")
+            feed3 = feedparser.parse(text2.encode("utf-8"))
+            if hasattr(feed3, "entries") and len(feed3.entries) > 0:
+                return feed3
+        except Exception:
+            pass
+    return feed
+
+
+def _is_html_not_feed(content: bytes, content_type: str = "") -> bool:
+    """
+    Deteksi apakah response sebenarnya HTML (bukan feed XML/RSS).
+
+    FIX: beberapa URL rss_asli (mis. kontan.co.id/feed, okezone, krjogja)
+    mengembalikan halaman HTML daftar-RSS, BUKAN feed XML. feedparser
+    akan menghasilkan SAXParseException + 0 entry. Deteksi dini agar
+    langsung fallback ke rss_google tanpa membuang cache untuk HTML.
+    """
+    ct = (content_type or "").lower()
+    if "xml" in ct or "rss" in ct or "atom" in ct:
+        return False
+    # Cek signature konten: feed XML diawali <?xml atau <rss atau <feed
+    head = content[:512].lstrip()
+    if head.startswith(b"<?xml") or head.startswith(b"<rss") or head.startswith(b"<feed"):
+        return False
+    # Cek apakah HTML
+    if b"<!DOCTYPE html" in content[:512].lower() or b"<html" in content[:512].lower():
+        return True
+    # Content-Type text/html -> pasti HTML
+    if "text/html" in ct:
+        return True
+    return False
+
+
 def dapatkan_feed_rss(aturan: dict):
     """
     Ambil feed RSS dengan fallback (rss_asli -> rss_google).
     Menggunakan cache 1 jam.
     Mengembalikan feedparser.FeedParserDict (kosong jika gagal).
+
+    FIX: tangani response HTML (bukan feed XML), SSL/conn error, dan
+    bozo-encoding secara graceful dengan fallback otomatis ke rss_google.
+    Mencatat alasan kegagalan ke aturan['__feed_error'] untuk pelaporan.
     """
     rss_asli = aturan.get("rss_asli")
     cache_key_asli = rss_asli or aturan.get("rss_google", "")
@@ -44,24 +104,56 @@ def dapatkan_feed_rss(aturan: dict):
     if rss_asli:
         cached = cache_get("feed", rss_asli)
         if cached is not None:
-            return feedparser.parse(cached.encode("utf-8"))
+            feed = _parse_feed_safely(cached.encode("utf-8"))
+            if hasattr(feed, "entries") and len(feed.entries) > 0:
+                return feed
+            # Cache tapi 0 entry -> lanjut fallback
 
         response = safe_request(rss_asli, timeout=8)
         if response is not None and response.status_code == 200:
-            cache_set("feed", rss_asli, response.text, ttl=DEFAULT_FEED_TTL)
-            return feedparser.parse(response.content)
+            # FIX: deteksi HTML-bukan-feed SEBELUM cache & parse.
+            ct = response.headers.get("Content-Type", "")
+            if _is_html_not_feed(response.content, ct):
+                aturan["__feed_error"] = "rss_asli mengembalikan HTML (bukan feed XML)"
+            else:
+                feed = _parse_feed_safely(response.content)
+                if hasattr(feed, "entries") and len(feed.entries) > 0:
+                    cache_set("feed", rss_asli, response.text, ttl=DEFAULT_FEED_TTL)
+                    aturan.pop("__feed_error", None)
+                    return feed
+                else:
+                    aturan["__feed_error"] = f"rss_asli 0 entry (bozo={feed.bozo})"
+        elif response is not None:
+            aturan["__feed_error"] = f"rss_asli HTTP {response.status_code}"
+        else:
+            aturan["__feed_error"] = "rss_asli timeout/koneksi gagal"
 
     # Fallback ke Google News
     rss_google = aturan.get("rss_google")
     if rss_google:
         cached = cache_get("feed", rss_google)
         if cached is not None:
-            return feedparser.parse(cached.encode("utf-8"))
+            feed = _parse_feed_safely(cached.encode("utf-8"))
+            if hasattr(feed, "entries") and len(feed.entries) > 0:
+                aturan.pop("__feed_error", None)
+                return feed
 
         response = safe_request(rss_google, timeout=8)
         if response is not None and response.status_code == 200:
-            cache_set("feed", rss_google, response.text, ttl=DEFAULT_FEED_TTL)
-            return feedparser.parse(response.content)
+            if _is_html_not_feed(response.content, response.headers.get("Content-Type", "")):
+                aturan["__feed_error"] = (aturan.get("__feed_error", "") + " | rss_google mengembalikan HTML").strip(" |")
+            else:
+                feed = _parse_feed_safely(response.content)
+                if hasattr(feed, "entries") and len(feed.entries) > 0:
+                    cache_set("feed", rss_google, response.text, ttl=DEFAULT_FEED_TTL)
+                    aturan.pop("__feed_error", None)
+                    return feed
+                else:
+                    aturan["__feed_error"] = (aturan.get("__feed_error", "") + " | rss_google 0 entry").strip(" |")
+        elif response is not None:
+            aturan["__feed_error"] = (aturan.get("__feed_error", "") + f" | rss_google HTTP {response.status_code}").strip(" |")
+        else:
+            aturan["__feed_error"] = (aturan.get("__feed_error", "") + " | rss_google timeout/koneksi gagal").strip(" |")
 
     return feedparser.parse("")
 
