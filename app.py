@@ -196,6 +196,13 @@ def konversi_ke_datetime(tanggal_str):
 
 
 def apakah_dalam_rentang(tanggal_str, jam_maksimal):
+    """Cek apakah tanggal berita berada dalam rentang jam_maksimal dari sekarang.
+
+    Toleransi waktu bersifat PROPORSIONAL terhadap rentang yang diminta:
+      - 10% dari jam_maksimal, dengan minimum 30 menit dan maksimum 2 jam.
+    Tujuan: mencegah toleransi tetap (2 jam) yang melebar dramatis pada
+    rentang pendek (mis. '3 Jam Terakhir' efektif menjadi 5 jam / +66%).
+    """
     if not tanggal_str or tanggal_str == 'N/A':
         return True
     try:
@@ -204,7 +211,9 @@ def apakah_dalam_rentang(tanggal_str, jam_maksimal):
             dt_berita = dt_berita.astimezone().replace(tzinfo=None)
         waktu_sekarang = datetime.now()
         batas_waktu = waktu_sekarang - timedelta(hours=jam_maksimal)
-        batas_waktu_dengan_toleransi = batas_waktu - timedelta(hours=2)
+        # Toleransi proporsional: 10% rentang, dibatasi 0.5 jam .. 2 jam.
+        toleransi_jam = max(0.5, min(2.0, jam_maksimal * 0.10))
+        batas_waktu_dengan_toleransi = batas_waktu - timedelta(hours=toleransi_jam)
         return batas_waktu_dengan_toleransi <= dt_berita <= waktu_sekarang
     except Exception:
         return True
@@ -338,10 +347,15 @@ def process_entry(
         return None
     trigger_terdeteksi = match.group(1).upper()
 
-    # CATATAN: Filter waktu TIDAK dilakukan di awal karena:
-    # 1. Tanggal RSS sering tidak akurat (terutama Google News).
-    # 2. Lebih efisien scrape dulu lalu filter di akhir dengan tanggal aktual.
-    # Lihat baris setelah scrape_artikel() di bawah.
+    # CATATAN: Filter waktu pra-scrape HANYA untuk portal terpercaya
+    # (field aturan['tanggal_terpercaya'] == True). Portal ini umumnya
+    # menggunakan RSS asli (bukan Google News) sehingga tanggal RSS akurat
+    # dan bisa dipakai untuk skip artikel lama SEBELUM scrape yang lambat.
+    # Untuk portal non-terpercaya, filter waktu tetap dilakukan di akhir
+    # (setelah scrape) dengan fallback tanggal dari HTML — lihat di bawah.
+    if jam_filter < 87600 and aturan.get("tanggal_terpercaya"):
+        if not apakah_dalam_rentang(tanggal, jam_filter):
+            return None
 
     # Deduplication: check + reserve harus atomik agar dua thread tidak
     # memproses artikel yang sama secara bersamaan.
@@ -365,11 +379,24 @@ def process_entry(
     status_akses = hasil.get("status_akses", "Error")
 
     # OPTIMASI: Filter waktu di-akhir, setelah kita punya tanggal & isi aktual.
-    # Jika tanggal RSS tidak akurat, kita pakai tanggal fallback agar artikel
-    # tidak terbuang sia-sia (kecuali user benar-benar minta "Semua Berita").
-    if jam_filter < 87600 and not apakah_dalam_rentang(tanggal, jam_filter):
-        # Coba pakai tanggal dari hasil scrape (jika ada), fallback ke now
-        return None
+    # Strategi dua-tingkat untuk akurasi maksimal:
+    #   1. Cek tanggal RSS ( cepat tapi sering tidak akurat, terutama Google News).
+    #   2. Jika tanggal RSS gagal/tidak dalam rentang, coba tanggal dari hasil
+    #      scrape halaman artikel (lebih akurat karena di-parse dari HTML).
+    #   3. Jika keduanya gagal, baru artikel dibuang — kecuali user minta
+    #      "Semua Berita" (jam_filter == 87600, tanpa filter).
+    if jam_filter < 87600:
+        tanggal_efektif = tanggal
+        if not apakah_dalam_rentang(tanggal_efektif, jam_filter):
+            # Fallback: ambil tanggal dari hasil scrape (lebih akurat dari HTML).
+            tanggal_scrape = hasil.get("tanggal", "") or ""
+            if tanggal_scrape and tanggal_scrape != tanggal and tanggal_scrape != 'N/A':
+                if apakah_dalam_rentang(tanggal_scrape, jam_filter):
+                    tanggal = tanggal_scrape  # pakai tanggal scrape untuk record
+                else:
+                    return None
+            else:
+                return None
 
     # ============================================================
     # ANALISIS LANJUTAN: SENTIMENT + NER
