@@ -586,7 +586,7 @@ def get_news_velocity(df: pd.DataFrame) -> pd.DataFrame:
     df_valid = df[df['dt_sort'] != datetime.min].copy()
     if df_valid.empty:
         return pd.DataFrame()
-    df_valid['Bucket'] = df_valid['dt_sort'].dt.floor('H')
+    df_valid['Bucket'] = df_valid['dt_sort'].dt.floor('h')
     velocity = df_valid.groupby('Bucket').size().reset_index(name='Jumlah')
     if not velocity.empty:
         avg = velocity['Jumlah'].mean()
