@@ -27,9 +27,43 @@ import pandas as pd
 import time
 import re
 import gc
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from dateutil import parser as date_parser
+
+# ============================================================
+# ZONA WAKTU INDONESIA (WIB = UTC+7) — FIX WAKTU RENTANG SCAN
+# ============================================================
+#
+# Latar belakang masalah:
+# - Server tempat Streamlit dijalankan bisa berada dalam zona UTC
+#   (Docker, Linux container, VPS tanpa TZ=Asia/Jakarta, cloud runtimes).
+# - `datetime.now()` pada server UTC akan menghasilkan waktu naive UTC,
+#   sehingga label "WIB" yang dicetak ke UI SALAH dan batas atas
+#   `apakah_dalam_rentang` ikut bergeser → berita yang sebenarnya masih
+#   di rentang (mis. 07.23 WIB) terdeteksi "terlalu baru" / di luar rentang.
+# - Indonesia tidak memberlakukan DST, jadi UTC+7 adalah konstanta sepanjang
+#   tahun (WIT = UTC+9, WITA = UTC+8 dipakai hanya jika ingin multi-zona).
+#
+# Solusi: helper `wib_now()` — selalu kembalikan datetime naive yang
+# merepresentasikan waktu WIB (UTC+7), independen dari zona waktu server.
+# Sengaja mengembalikan datetime NAIVE agar kompatibel dengan sisa kode
+# yang membandingkan `dt_berita.astimezone().replace(tzinfo=None)`.
+# ============================================================
+
+WIB_OFFSET = timezone(timedelta(hours=7))  # Asia/Jakarta (WIB)
+
+
+def wib_now():
+    """Return datetime naive yang merepresentasikan waktu WIB (UTC+7) saat ini.
+
+    Tidak bergantung pada zona waktu sistem — selalu dikonversi dari UTC
+    eksplisit ke UTC+7 terlebih dahulu. Aman untuk server Windows/Linux/
+    Docker/VPS dengan zona waktu sistem apapun.
+    """
+    sekarang_utc = datetime.now(timezone.utc)  # aware UTC
+    return sekarang_utc.astimezone(WIB_OFFSET).replace(tzinfo=None)  # naive WIB
+
 from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -239,18 +273,22 @@ _KATEGORI_PATTERNS = {
 
 def konversi_ke_datetime(tanggal_str):
     if not tanggal_str or tanggal_str == 'N/A':
-        return datetime.now()
+        return wib_now()
     try:
         dt = date_parser.parse(tanggal_str)
         if dt.tzinfo is not None:
             dt = dt.astimezone().replace(tzinfo=None)
         return dt
     except Exception:
-        return datetime.now()
+        return wib_now()
 
 
 def apakah_dalam_rentang(tanggal_str, jam_maksimal):
-    """Cek apakah tanggal berita berada dalam rentang jam_maksimal dari sekarang.
+    """Cek apakah tanggal berita berada dalam rentang jam_maksimal dari sekarang
+    dalam zona waktu WIB (UTC+7).
+
+    FIX: gunakan wib_now() alih-alih datetime.now() agar batas atas konsisten
+    dengan waktu scan (last_scan_at) — tidak bergantung pada zona waktu server.
 
     Toleransi waktu bersifat PROPORSIONAL terhadap rentang yang diminta:
       - 10% dari jam_maksimal, dengan minimum 30 menit dan maksimum 2 jam.
@@ -262,8 +300,12 @@ def apakah_dalam_rentang(tanggal_str, jam_maksimal):
     try:
         dt_berita = date_parser.parse(tanggal_str)
         if dt_berita.tzinfo is not None:
+            # Konversi ke zona lokal server dulu (untuk membuang tzinfo),
+            # lalu tambahkan offset agar representasi waktunya = WIB.
+            # date_parser.parse tanpa tz diasumsikan WIB karena semua portal
+            # berita di konfigurasi merupakan portal Indonesia.
             dt_berita = dt_berita.astimezone().replace(tzinfo=None)
-        waktu_sekarang = datetime.now()
+        waktu_sekarang = wib_now()
         batas_waktu = waktu_sekarang - timedelta(hours=jam_maksimal)
         # Toleransi proporsional: 10% rentang, dibatasi 0.5 jam .. 2 jam.
         toleransi_jam = max(0.5, min(2.0, jam_maksimal * 0.10))
@@ -1008,7 +1050,7 @@ if tombol_scan:
             )
             st.session_state.df_hasil = df
             st.session_state.duration_scan = duration
-            st.session_state.last_scan_at = datetime.now()
+            st.session_state.last_scan_at = wib_now()
             st.session_state.scan_stats = {
                 "paralel_workers": max_workers,
                 "cache_hits": max(0, cache_hits_scan),

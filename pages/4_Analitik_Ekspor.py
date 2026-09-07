@@ -88,7 +88,7 @@ if selected_sentimen and 'Sentimen' in df_export.columns:
 # =====================================================================
 # Metrik Ekspor
 # =====================================================================
-waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
+waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")  # server lokal; hanya fallback display
 # FIX: gunakan waktu pemindaian ASLI (last_scan_at) yang disimpan di session_state
 # saat tombol scan ditekan, BUKAN datetime.now() yang berubah tiap kali halaman
 # di-render ulang. Ini memastikan "waktu pemindaian" di laporan konsisten
