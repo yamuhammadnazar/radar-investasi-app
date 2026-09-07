@@ -283,12 +283,19 @@ def konversi_ke_datetime(tanggal_str):
         return wib_now()
 
 
-def apakah_dalam_rentang(tanggal_str, jam_maksimal):
-    """Cek apakah tanggal berita berada dalam rentang jam_maksimal dari sekarang
-    dalam zona waktu WIB (UTC+7).
+def apakah_dalam_rentang(tanggal_str, jam_maksimal, waktu_acuan=None):
+    """Cek apakah tanggal berita berada dalam rentang jam_maksimal dari
+    ``waktu_acuan`` dalam zona waktu WIB (UTC+7).
 
     FIX: gunakan wib_now() alih-alih datetime.now() agar batas atas konsisten
     dengan waktu scan (last_scan_at) — tidak bergantung pada zona waktu server.
+
+    FIX AKURASI RENTANG: ``waktu_acuan`` (waktu mulai scan yang dikunci sekali
+    di awal pemindaian) digunakan sebagai batas atas rentang. Sebelumnya fungsi
+    ini memakai wib_now() pada saat tiap entry diproses, yang bisa bergeser
+    selama scan berjalan — sehingga berita difilter dengan acuan waktu yang
+    berbeda-beda dan label rentang (last_scan_at - jam) tidak sesuai dengan
+    rentang saat filter benar-benar dievaluasi.
 
     Toleransi waktu bersifat PROPORSIONAL terhadap rentang yang diminta:
       - 10% dari jam_maksimal, dengan minimum 30 menit dan maksimum 2 jam.
@@ -305,7 +312,10 @@ def apakah_dalam_rentang(tanggal_str, jam_maksimal):
             # date_parser.parse tanpa tz diasumsikan WIB karena semua portal
             # berita di konfigurasi merupakan portal Indonesia.
             dt_berita = dt_berita.astimezone().replace(tzinfo=None)
-        waktu_sekarang = wib_now()
+        # Batas atas = waktu acuan (kunci di awal scan) supaya konsisten
+        # dengan last_scan_at yang ditampilkan ke UI. Fallback ke wib_now()
+        # hanya bila dipanggil tanpa waktu_acuan (panggilan lama/testing).
+        waktu_sekarang = waktu_acuan if waktu_acuan is not None else wib_now()
         batas_waktu = waktu_sekarang - timedelta(hours=jam_maksimal)
         # Toleransi proporsional: 10% rentang, dibatasi 0.5 jam .. 2 jam.
         toleransi_jam = max(0.5, min(2.0, jam_maksimal * 0.10))
@@ -422,11 +432,17 @@ def process_entry(
     ambang_duplikat: float,
     daftar_tersimpan: list,
     dedup_lock: Optional[Lock] = None,
+    waktu_acuan=None,
 ) -> Optional[dict]:
     """
     Proses satu entry RSS sampai menjadi record siap-simpan.
     Dipanggil paralel via ThreadPoolExecutor.
     Mengembalikan dict atau None jika di-skip.
+
+    ``waktu_acuan`` = waktu mulai scan (WIB) yang dikunci sekali di awal
+    pemindaian. Diteruskan ke ``apakah_dalam_rentang`` agar batas atas
+    rentang filter konsisten untuk SEMUA entry — tidak bergeser selama
+    scan berjalan. Konsisten dengan ``last_scan_at`` yang ditampilkan ke UI.
     """
     judul = entry.get("title", "N/A")
     link = entry.get("link", "N/A")
@@ -454,7 +470,7 @@ def process_entry(
     # Untuk portal non-terpercaya, filter waktu tetap dilakukan di akhir
     # (setelah scrape) dengan fallback tanggal dari HTML — lihat di bawah.
     if jam_filter < 87600 and aturan.get("tanggal_terpercaya"):
-        if not apakah_dalam_rentang(tanggal, jam_filter):
+        if not apakah_dalam_rentang(tanggal, jam_filter, waktu_acuan=waktu_acuan):
             return None
 
     # Deduplication: check + reserve harus atomik agar dua thread tidak
@@ -487,11 +503,11 @@ def process_entry(
     #      "Semua Berita" (jam_filter == 87600, tanpa filter).
     if jam_filter < 87600:
         tanggal_efektif = tanggal
-        if not apakah_dalam_rentang(tanggal_efektif, jam_filter):
+        if not apakah_dalam_rentang(tanggal_efektif, jam_filter, waktu_acuan=waktu_acuan):
             # Fallback: ambil tanggal dari hasil scrape (lebih akurat dari HTML).
             tanggal_scrape = hasil.get("tanggal", "") or ""
             if tanggal_scrape and tanggal_scrape != tanggal and tanggal_scrape != 'N/A':
-                if apakah_dalam_rentang(tanggal_scrape, jam_filter):
+                if apakah_dalam_rentang(tanggal_scrape, jam_filter, waktu_acuan=waktu_acuan):
                     tanggal = tanggal_scrape  # pakai tanggal scrape untuk record
                 else:
                     return None
@@ -917,6 +933,15 @@ if tombol_scan:
         start_time = time.time()
         total_portal = len(portal_terpilih)
 
+        # FIX AKURASI RENTANG: Kunci waktu acuan (WIB) SEKALI di awal scan.
+        # - Dipakai sebagai batas atas oleh apakah_dalam_rentang() untuk SEMUA
+        #   entry yang diproses (tidak lagi memakai wib_now() yang bergeser
+        #   selama scan berjalan paralel).
+        # - Disimpan sebagai last_scan_at sehingga label "Periode efektif"
+        #   dan rentang absolut di halaman Ekspor konsisten dengan batas
+        #   yang dipakai saat filter berjalan.
+        waktu_mulai_scan = wib_now()
+
         cache_hits_awal = get_cache_stats()
         cache_total_awal = cache_hits_awal["total"]
 
@@ -979,6 +1004,7 @@ if tombol_scan:
                             entry, aturan, jam_filter,
                             aktifkan_deduplikasi, ambang_duplikat,
                             daftar_tersimpan, dedup_lock,
+                            waktu_acuan=waktu_mulai_scan,
                         ): entry
                         for entry in target_entries
                     }
@@ -1050,7 +1076,7 @@ if tombol_scan:
             )
             st.session_state.df_hasil = df
             st.session_state.duration_scan = duration
-            st.session_state.last_scan_at = wib_now()
+            st.session_state.last_scan_at = waktu_mulai_scan
             st.session_state.scan_stats = {
                 "paralel_workers": max_workers,
                 "cache_hits": max(0, cache_hits_scan),
