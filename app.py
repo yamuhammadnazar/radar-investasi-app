@@ -610,6 +610,10 @@ if 'skor_indeks_val' not in st.session_state:
     st.session_state.skor_indeks_val = 50.0
 if 'scan_stats' not in st.session_state:
     st.session_state.scan_stats = {"paralel_workers": 8, "cache_hits": 0}
+if 'scan_rentang_label' not in st.session_state:
+    st.session_state.scan_rentang_label = None
+if 'scan_jam_filter' not in st.session_state:
+    st.session_state.scan_jam_filter = None
 
 # Header
 st.markdown("""
@@ -684,10 +688,31 @@ if st.session_state.df_hasil is not None:
     )
     last_scan_at = st.session_state.get("last_scan_at")
     if last_scan_at:
-        st.caption(
+        caption_text = (
             f"🕒 Pemindaian terakhir: {last_scan_at.strftime('%d/%m/%Y %H:%M:%S')} "
             f"· Cache baru: {st.session_state.scan_stats.get('cache_hits', 0)} entry"
         )
+        # FIX: tampilkan label rentang + periode efektif pada caption utama
+        # sehingga user dapat langsung memverifikasi akurasi rentang waktu
+        # di halaman utama (tidak perlu navigasi ke Ekspor dulu).
+        rentang_label_caption = st.session_state.get('scan_rentang_label')
+        scan_jam_filter_caption = st.session_state.get('scan_jam_filter')
+        if rentang_label_caption:
+            caption_text += f"\n📅 Rentang: {rentang_label_caption}"
+            if (
+                isinstance(scan_jam_filter_caption, (int, float))
+                and 0 < scan_jam_filter_caption < 87600
+            ):
+                try:
+                    batas_bawah_caption = last_scan_at - timedelta(hours=float(scan_jam_filter_caption))
+                    caption_text += (
+                        f"\n📆 Periode efektif: {batas_bawah_caption.strftime('%d/%m %H:%M')} "
+                        f"→ {last_scan_at.strftime('%d/%m %H:%M')} WIB "
+                        f"(±{scan_jam_filter_caption:.0f} jam)"
+                    )
+                except Exception:
+                    pass
+        st.caption(caption_text)
     st.markdown("<br>", unsafe_allow_html=True)
 
 # Info panel
@@ -988,6 +1013,11 @@ if tombol_scan:
                 "paralel_workers": max_workers,
                 "cache_hits": max(0, cache_hits_scan),
             }
+            # Simpan metadata pemindaian agar halaman lain (mis. Ekspor)
+            # bisa menampilkan waktu & rentang pemindaian yang AKURAT —
+            # bukan waktu saat halaman dibuka/di-render ulang.
+            st.session_state.scan_rentang_label = pilihan_rentang
+            st.session_state.scan_jam_filter = jam_filter
 
             n_pos = len(df[df["Sentimen"] == "POSITIF"])
             n_neg = len(df[df["Sentimen"] == "NEGATIF"])

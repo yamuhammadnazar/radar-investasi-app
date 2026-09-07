@@ -7,7 +7,7 @@ auto-generated, opsi multi-section, dan watermark waktu.
 import io
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -89,6 +89,45 @@ if selected_sentimen and 'Sentimen' in df_export.columns:
 # Metrik Ekspor
 # =====================================================================
 waktu_sekarang = datetime.now().strftime("%d-%m-%Y %H:%M WIB")
+# FIX: gunakan waktu pemindaian ASLI (last_scan_at) yang disimpan di session_state
+# saat tombol scan ditekan, BUKAN datetime.now() yang berubah tiap kali halaman
+# di-render ulang. Ini memastikan "waktu pemindaian" di laporan konsisten
+# dengan kapan berita benar-benar di-scan, bukan kapan halaman dibuka.
+last_scan_at = st.session_state.get('last_scan_at')
+if last_scan_at is not None:
+    if isinstance(last_scan_at, datetime):
+        waktu_scan_asli = last_scan_at.strftime("%d-%m-%Y %H:%M WIB")
+        waktu_scan_file = last_scan_at.strftime("%Y%m%d_%H%M")
+    else:
+        waktu_scan_asli = str(last_scan_at)
+        waktu_scan_file = datetime.now().strftime('%Y%m%d_%H%M')
+else:
+    # Fallback jika halaman dibuka sebelum pemindaian pertama
+    waktu_scan_asli = "Belum ada pemindaian"
+    waktu_scan_file = datetime.now().strftime('%Y%m%d_%H%M')
+
+# Rentang waktu yang dipakai saat pemindaian (mis. "24 Jam Terakhir (1 Hari)")
+rentang_label = st.session_state.get('scan_rentang_label') or "Tidak diketahui"
+# FIX: Hitung & tampilkan RENTANG WAKTU ABSOLUT (periode efektif) — mis. "06:40 (25/10)
+# → 06:40 (26/10)" untuk "24 Jam Terakhir". Sebelumnya user hanya melihat label
+# generik seperti "24 Jam Terakhir (1 Hari)" tanpa tahu periode pasti, sehingga
+# sulit memverifikasi akurasi terhadap waktu scan sebenarnya.
+scan_jam_filter = st.session_state.get('scan_jam_filter')  # disimpan oleh app.py saat scan
+if isinstance(last_scan_at, datetime) and isinstance(scan_jam_filter, (int, float)) and scan_jam_filter < 87600:
+    # Filter aktif (bukan "Semua Berita"): tampilkan periode absolut [batas_bawah, waktu_scan]
+    try:
+        batas_bawah = last_scan_at - timedelta(hours=float(scan_jam_filter))
+        rentang_absolut_str = (
+            f"{batas_bawah.strftime('%d/%m %H:%M')} → {last_scan_at.strftime('%d/%m %H:%M')} WIB "
+            f"(±{scan_jam_filter:.0f} jam)"
+        )
+    except Exception:
+        rentang_absolut_str = None
+elif isinstance(last_scan_at, datetime) and scan_jam_filter == 87600:
+    rentang_absolut_str = "Semua Berita (tanpa batas waktu)"
+else:
+    rentang_absolut_str = None
+
 label_indeks, pen_indeks, _ = kategori_indeks(skor_indeks)
 total_artikel = len(df_export)
 agg = hitung_sentimen_counts(df_export)
@@ -108,6 +147,20 @@ with col_m4:
     metric_badge(f"{agg['pos']}/{agg['neg']}/{agg['net']}",
                  "Pos/Neg/Net", "distribusi", PALETTE['purple'])
 
+# FIX: tampilkan waktu pemindaian & rentang yang AKURAT.
+# Sebelumnya hanya datetime.now() yang berubah-ubah tiap render.
+# Sekarang ditambah RENTANG ABSOLUT (periode efektif: batas_bawah → waktu_scan)
+# sehingga user dapat langsung memverifikasi bahwa rentang waktu sesuai dengan
+# yang ditampilkan — bukan lagi label generik tanpa angka absolut.
+info_text = (
+    f"🕒 **Waktu Pemindaian:** {waktu_scan_asli}  \n"
+    f"📅 **Rentang Waktu (label):** {rentang_label}  \n"
+    f"⏱️ **Durasi Scan:** {st.session_state.get('duration_scan', 0):.1f} detik"
+)
+if rentang_absolut_str:
+    info_text = f"📆 **Periode Efektif:** {rentang_absolut_str}  \n" + info_text
+st.info(info_text)
+
 st.markdown("---")
 
 # =====================================================================
@@ -118,7 +171,11 @@ def generate_txt_report(include_summary: bool = True) -> str:
     lines = []
     lines.append("=" * 60)
     lines.append("RADAR BERITA PORTOFOLIO SAHAM LOKAL")
-    lines.append(f"Generated: {waktu_sekarang}")
+    lines.append(f"Waktu Pemindaian: {waktu_scan_asli}")
+    lines.append(f"Label Rentang: {rentang_label}")
+    if rentang_absolut_str:
+        lines.append(f"Periode Efektif: {rentang_absolut_str}")
+    lines.append(f"Generated (Laporan): {waktu_sekarang}")
     lines.append(f"Indeks Sentimen: {skor_indeks:.1f}% — {label_indeks}")
     lines.append(f"Total Berita: {total_artikel} Artikel")
     lines.append(f"Positif: {agg['pos']} | Netral: {agg['net']} | Negatif: {agg['neg']}")
@@ -188,7 +245,11 @@ def generate_markdown_report() -> str:
     """Generate markdown report (untuk GitHub/Notion)."""
     md = []
     md.append(f"# 📊 Laporan Radar Berita Portofolio")
-    md.append(f"**Generated:** {waktu_sekarang}  ")
+    md.append(f"**Waktu Pemindaian:** {waktu_scan_asli}  ")
+    md.append(f"**Label Rentang:** {rentang_label}  ")
+    if rentang_absolut_str:
+        md.append(f"**Periode Efektif:** {rentang_absolut_str}  ")
+    md.append(f"**Generated (Laporan):** {waktu_sekarang}  ")
     md.append(f"**Indeks Sentimen:** {skor_indeks:.1f}% — *{label_indeks}*  ")
     md.append(f"**Total Berita:** {total_artikel} artikel")
     md.append("")
@@ -359,6 +420,9 @@ with col_btn4:
     json_payload = {
         "metadata": {
             "generated_at": waktu_sekarang,
+            "waktu_pemindaian": waktu_scan_asli,
+            "label_rentang": rentang_label,
+            "periode_efektif": rentang_absolut_str,
             "skor_indeks": skor_indeks,
             "label_indeks": label_indeks,
             "total_artikel": total_artikel,
