@@ -123,7 +123,6 @@ KATEGORI_PORTOFOLIO = {
         "bris", "bank syariah indonesia",
         "smsm", "selamat sempurna",
         "sido", "industri jamu dan farmasi sido muncul",
-        "ptba", "bukit asam",
         "aces", "aspirasi hidup indonesia",
         "laporan keuangan", "Laba bersih",
     ],
@@ -133,7 +132,7 @@ KATEGORI_PORTOFOLIO = {
         "otomotif", "spare part", "aftermarket",
         "farmasi", "herbal", "consumer health",
         "retail", "home improvement",
-        "batu bara"
+
     ],
     "ETF": [
         "r-lq45x", "lq45", "indeks lq45", "rebalancing lq45",
@@ -169,14 +168,12 @@ KATEGORI_PORTOFOLIO = {
         "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "ngabang", "kalbar",
     ],
     "TEKNOLOGI": [
-        "teknologi", "technology", "startup", "unicorn", "decacorn",
         "kecerdasan buatan", "artificial intelligence", "ai", "chatgpt", "gpt",
         "machine learning", "deep learning", "llm", "model bahasa",
         "semikonduktor", "chip", "nvidia", "tsmc", "asml",
         "kripto", "cryptocurrency", "bitcoin", "ethereum", "blockchain", "web3",
         "fintech", "paylater", "dompet digital", "e-wallet",
-        "e-commerce", "marketplace", "tokopedia", "shopee", "bukalapak",
-        "listrik kendaraan", "kendaraan listrik", "ev", "baterai litium",
+        "e-commerce", "marketplace", "listrik kendaraan", "kendaraan listrik", "ev", "baterai litium",
         "data center", "pusat data", "cloud", "cloud computing", "aws",
         "5g", "jaringan 5g", "satelit", "starlink",
         "siber", "keamanan siber", "cybersecurity", "ransomware", "peretasan",
@@ -216,11 +213,12 @@ KATEGORI_PORTOFOLIO = {
         "trade deficit", "trade surplus", "tariff", "bea masuk",
         "apple", "microsoft", "nvidia", "tesla", "amazon", "meta", "google",
         "berita luar negeri", "berita internasional", "internasional",
-        "inflasi global", "resesi global", "pertumbuhan global", "global growth"
+        "inflasi global", "resesi global", "pertumbuhan global", "global growth", "Malaysia", "Singapura",
+        "Tiongkok", "China", "Amerika Serikat", "AS", "Jepang", "Korea Selatan", "India", "Eropa", "Inggris",
     ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
-        "Indeks", "Bencana", "Anime", "Game"
+        "Indeks", "Bencana", "Anime", "Game",
     ]
 }
 
