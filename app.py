@@ -159,13 +159,15 @@ KATEGORI_PORTOFOLIO = {
     ],
     "MAKRO_GLOBAL": [
         "federal reserve", "fed rate", "us cpi", "us pce", "us nfp",
-        "us treasury yield", "dxy", "china economy", "china stimulus", "ftse", "msci"
+        "us treasury yield", "dxy", "china economy", "china stimulus", "ftse", "msci",
     ],
     "REGULASI": [
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
         "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konstitusi",
-        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "ngabang", "kalbar",
+        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "ngabang", "kalbar","mahkamah konstitusi", 
+        "MK", "DPRD KALBAR", "DPRD KALBAR", "DPRD LANDAK", "DPRD NGABANG", "BPS", "BI", "OJK", "BEI",
+                
     ],
     "TEKNOLOGI": [
         "kecerdasan buatan", "artificial intelligence", "ai", "chatgpt", "gpt",
