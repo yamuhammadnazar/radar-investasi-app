@@ -124,14 +124,16 @@ KATEGORI_PORTOFOLIO = {
         "smsm", "selamat sempurna",
         "sido", "industri jamu dan farmasi sido muncul",
         "aces", "aspirasi hidup indonesia",
-        "laporan keuangan", "Laba bersih",
+        "Ultj", "ultra jaya milk industri",
+        "tlkm", "tspc", "AUTO", "CMRY","CPIN",
     ],
     "SEKTOR_SAHAM": [
         "keramik", "properti", "konstruksi",
         "perbankan", "perbankan syariah",
         "otomotif", "spare part", "aftermarket",
         "farmasi", "herbal", "consumer health",
-        "retail", "home improvement",
+        "retail", "home improvement","laporan keuangan", "Laba bersih",
+        "Deviden","Market",
 
     ],
     "ETF": [
@@ -149,24 +151,28 @@ KATEGORI_PORTOFOLIO = {
         "logam mulia", "LM Antam", "LM Pegadaian"
     ],
     "KOMODITAS": [
-        "harga batu bara", "hba", "coal price", "harga minyak", "oil price"
+        "harga batu bara", "hba", "coal price", "harga minyak", "oil price",
+        "Brent"
     ],
     "MAKRO_INDONESIA": [
         "bi rate", "bank indonesia", "inflasi indonesia", "rupiah", "usd/idr",
         "gdp indonesia", "pertumbuhan ekonomi", "apbn", "yield obligasi",
         "ihsg", "foreign flow", "net buy asing", "net sell asing","Harga pangan", "inflasi",
-        "defisit neraca perdagangan", "ekspor-impor", "neraca perdagangan",
+        "defisit neraca perdagangan", "ekspor-impor", "neraca perdagangan", "saham", 
+        "bursa efek indonesia", "inflasi IHK"
     ],
     "MAKRO_GLOBAL": [
         "federal reserve", "fed rate", "us cpi", "us pce", "us nfp",
         "us treasury yield", "dxy", "china economy", "china stimulus", "ftse", "msci",
+        "biro statistik tenaga kerja AS", "gubernur bank of japan", "BOJ"
     ],
     "REGULASI": [
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
         "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konstitusi",
         "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "ngabang", "kalbar","mahkamah konstitusi", 
-        "MK", "DPRD KALBAR", "DPRD KALBAR", "DPRD LANDAK", "DPRD NGABANG", "BPS", "BI", "OJK", "BEI",
+        "MK", "DPRD KALBAR", "DPRD KALBAR", "DPRD LANDAK", "DPRD NGABANG", "BPS", "BI", "OJK", "Badan pusat Statistik"
+        "direktur utama bei",
                 
     ],
     "TEKNOLOGI": [
