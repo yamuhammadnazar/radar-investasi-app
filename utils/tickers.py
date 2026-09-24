@@ -193,7 +193,7 @@ def get_all_mentioned_tickers(teks: str) -> List[str]:
 # ============================================================
 
 USER_PORTFOLIO = {
-    "ARNA", "BRIS", "SMSM", "SIDO", "PTBA", "ACES",  # dari app.py
+    "ARNA", "BRIS", "SMSM", "SIDO", "ACES", "ULTJ"  # dari app.py
 }
 
 
