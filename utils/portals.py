@@ -555,4 +555,20 @@ aturan_portal = {
         "tag": "div", "class": "post-body entry-content", "butuh_page_all": False,
         "tanggal_terpercaya": True
     },
+    "Landak Pusat Informasi (Blogger)": {
+        "rss_asli": "https://www.landakpusatinformasi.com/feeds/posts/default?alt=rss",
+        "rss_google": "",
+        "tag": "div", "class": "post-body entry-content", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Kalbar Online (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=kalimantan+barat+OR+pontianak+OR+ngabang+OR+landak&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Antara Kalbar": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com/kalimantan-barat&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
+    }
 }

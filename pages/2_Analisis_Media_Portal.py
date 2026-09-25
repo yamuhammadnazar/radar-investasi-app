@@ -214,38 +214,41 @@ with col1:
             st.info("Data Sumber tidak tersedia.")
 
 with col2:
-    with st.container(border=True):
-        st.subheader("📈 Dominasi Fokus Kategori Aset")
-        if 'Kategori Aset' in df.columns and not df['Kategori Aset'].empty:
-            top_kategori = df['Kategori Aset'].value_counts().idxmax()
-            jumlah_kat = df['Kategori Aset'].value_counts().max()
-            st.info(f"Kategori aset yang paling mendominasi pemberitaan saat ini adalah **{top_kategori}** sebanyak **{jumlah_kat} artikel**.")
-            st.markdown("**🥧 Persentase Kategori Aset:**")
-            kat_counts = df['Kategori Aset'].value_counts()
-            colors_kat = [PALETTE['primary'], PALETTE['pos'], PALETTE['warning'],
-                          PALETTE['danger'], PALETTE['purple'], PALETTE['neg']]
-            fig, ax = plt.subplots(figsize=(5, 4))
-            fig.patch.set_facecolor('none')
-            ax.set_facecolor('none')
-            wedges, texts, autotexts = ax.pie(
-                kat_counts,
-                labels=safe_pie_labels(kat_counts.index, max_len=20),
-                autopct='%1.1f%%', startangle=90,
-                colors=colors_kat[:len(kat_counts)],
-                pctdistance=0.75,
-                wedgeprops=dict(width=0.42, edgecolor=PALETTE['bg_deep'], linewidth=2),
-                textprops={'fontsize': 9, 'color': PALETTE['text_main']},
-            )
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontsize(8.5)
-                autotext.set_weight('bold')
-            ax.axis('equal')
-            st.pyplot(fig)
-            plt.close(fig)
-        else:
-            st.info("Data Kategori Aset tidak tersedia.")
-
+   with st.container(border=True):
+            st.subheader("📈 Dominasi Fokus Kategori Aset")
+            if 'Kategori Aset' in df.columns and not df['Kategori Aset'].empty:
+                top_kategori = df['Kategori Aset'].value_counts().idxmax()
+                jumlah_kat = df['Kategori Aset'].value_counts().max()
+                st.info(f"Kategori aset yang paling mendominasi pemberitaan saat ini adalah **{top_kategori}** sebanyak **{jumlah_kat} artikel**.")
+                st.markdown("**🥧 Persentase Kategori Aset:**")
+                
+                kat_counts = df['Kategori Aset'].value_counts()
+                
+              
+                colors_kat = plt.cm.tab20.colors 
+                
+                fig, ax = plt.subplots(figsize=(5, 4))
+                fig.patch.set_facecolor('none')
+                ax.set_facecolor('none')
+                wedges, texts, autotexts = ax.pie(
+                    kat_counts,
+                    labels=safe_pie_labels(kat_counts.index, max_len=20),
+                    autopct='%1.1f%%', startangle=90,
+                    # Memanggil colors dengan batas aman
+                    colors=colors_kat[:len(kat_counts)] if len(kat_counts) <= 20 else plt.cm.tab20c.colors,
+                    pctdistance=0.75,
+                    wedgeprops=dict(width=0.42, edgecolor=PALETTE['bg_deep'], linewidth=2),
+                    textprops={'fontsize': 9, 'color': PALETTE['text_main']},
+                )
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontsize(8.5)
+                    autotext.set_weight('bold')
+                ax.axis('equal')
+                st.pyplot(fig)
+                plt.close(fig)
+            else:
+                st.info("Data Kategori Aset tidak tersedia.")
 # =====================================================================
 # BAGIAN 5: Media Reliability Score (BARU)
 # =====================================================================

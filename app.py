@@ -124,21 +124,20 @@ KATEGORI_PORTOFOLIO = {
         "smsm", "selamat sempurna",
         "sido", "industri jamu dan farmasi sido muncul",
         "aces", "aspirasi hidup indonesia",
-        "Ultj", "ultra jaya milk industri",
-        "tlkm", "tspc", "AUTO", "CMRY","CPIN",
+        "ultj", "ultra jaya milk industri",
+        "tlkm", "tspc", "auto", "cmry","cpin",
     ],
     "SEKTOR_SAHAM": [
         "keramik", "properti", "konstruksi",
         "perbankan", "perbankan syariah",
         "otomotif", "spare part", "aftermarket",
         "farmasi", "herbal", "consumer health",
-        "retail", "home improvement","laporan keuangan", "Laba bersih",
-        "Deviden","Market",
-
+        "retail", "home improvement","laporan keuangan", "laba bersih",
+        "dividen","market",
     ],
     "ETF": [
         "r-lq45x", "lq45", "indeks lq45", "rebalancing lq45",
-        "konstituen lq45", "etf indonesia", "foreign flow", "SPY", "Indeks SPY"
+        "konstituen lq45", "etf indonesia", "foreign flow", "spy", "indeks spy"
     ],
     "REKSADANA": [
         "majoris pasar uang syariah", "mandiri invasta dana syariah",
@@ -147,33 +146,57 @@ KATEGORI_PORTOFOLIO = {
         "majoris sukuk negara", "reksadana pasar uang", "reksadana campuran"
     ],
     "EMAS": [
-        "emas", "gold", "xau", "xau/usd", "harga emas", "emas pegadaian", "emas antam", "Pegadaian",
-        "logam mulia", "LM Antam", "LM Pegadaian"
+        "emas", "gold", "xau", "xau/usd", "harga emas", "emas pegadaian", "emas antam", "pegadaian",
+        "logam mulia", "lm antam", "lm pegadaian"
     ],
     "KOMODITAS": [
         "harga batu bara", "hba", "coal price", "harga minyak", "oil price",
-        "Brent"
+        "brent"
     ],
     "MAKRO_INDONESIA": [
         "bi rate", "bank indonesia", "inflasi indonesia", "rupiah", "usd/idr",
         "gdp indonesia", "pertumbuhan ekonomi", "apbn", "yield obligasi",
-        "ihsg", "foreign flow", "net buy asing", "net sell asing","Harga pangan", "inflasi",
+        "ihsg", "foreign flow", "net buy asing", "net sell asing","harga pangan", "inflasi",
         "defisit neraca perdagangan", "ekspor-impor", "neraca perdagangan", "saham", 
-        "bursa efek indonesia", "inflasi IHK"
+        "bursa efek indonesia", "inflasi ihk"
     ],
     "MAKRO_GLOBAL": [
         "federal reserve", "fed rate", "us cpi", "us pce", "us nfp",
         "us treasury yield", "dxy", "china economy", "china stimulus", "ftse", "msci",
-        "biro statistik tenaga kerja AS", "gubernur bank of japan", "BOJ"
+        "biro statistik tenaga kerja as", "gubernur bank of japan", "boj"
     ],
     "REGULASI": [
         "ojk", "bei", "kementerian keuangan", "kementerian esdm",
         "kementerian perindustrian", "kementerian perdagangan",
-        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "BKN", "MenPanRp", "Mahkamah Konstitusi",
-        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "ngabang", "kalbar","mahkamah konstitusi", 
-        "MK", "DPRD KALBAR", "DPRD KALBAR", "DPRD LANDAK", "DPRD NGABANG", "BPS", "BI", "OJK", "Badan pusat Statistik"
-        "direktur utama bei",
-                
+        "kebijakan pemerintah", "aturan ekspor", "aturan impor", "kebijakan pajak", "dpr", "bkn", "menpanrb", "mahkamah konstitusi",
+        "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "dprd kalbar", "dprd landak", "bps"
+    ],
+    # --- KATEGORI BARU ---
+    "POLITIK": [
+        "politik", "pemilu", "pilkada", "partai politik", "koalisi", "parlemen", 
+        "kabinet", "menteri", "kampanye", "suara", "legislatif", "eksekutif", "pemilihan",
+        "fraksi", "ketua umum", "debat publik"
+    ],
+    "LOKAL_KALBAR_NGABANG": [
+        "kalimantan barat", "kalbar", "pontianak", "ngabang", "landak", "kabupaten landak",
+        "singkawang", "sintang", "mempawah", "ketapang", "sanggau", "sambas", "kubu raya",
+        "kayong utara", "melawi", "sekadau", "bengkayang", "pemkab landak", "gubernur kalbar",
+        "bupati landak", "wako pontianak"
+    ],
+    "KESEHATAN": [
+        "kesehatan", "rsud", "rumah sakit", "menkes", "kementerian kesehatan", "bpjs kesehatan",
+        "vaksin", "wabah", "virus", "klinik", "dokter", "obat", "stunting", "gizi",
+        "puskesmas", "epidemi", "obat murah", "bpom"
+    ],
+    "INSTITUSI": [
+        "institusi", "lembaga negara", "kpk", "polri", "kejaksaan agung", "tni",
+        "mahkamah agung", "komnas ham", "ombudsman", "bpk", "bawaslu", "kpu",
+        "mabes polri", "polda kalbar", "polres landak"
+    ],
+    "ASEAN": [
+        "asean", "asia tenggara", "ktt asean", "malaysia", "singapura", "thailand",
+        "filipina", "vietnam", "brunei darussalam", "myanmar", "kamboja", "laos", "timor leste",
+        "sekretariat asean", "ekonomi asean"
     ],
     "TEKNOLOGI": [
         "kecerdasan buatan", "artificial intelligence", "ai", "chatgpt", "gpt",
@@ -191,9 +214,7 @@ KATEGORI_PORTOFOLIO = {
         "big data", "analitik data", "internet of things", "iot",
         "sistem operasi", "perangkat lunak", "software", "saas",
         "transformasi digital", "digitalisasi", "ekonomi digital",
-        "GoTo", "Gojek", "Grab", "Traveloka", "Bukalapak",
-        "industri kreatif digital", "penjualan daring", "online shopping",
-        "penipuan daring", "penipuan online", "judi online"
+        "goto", "gojek", "grab", "traveloka", "bukalapak"
     ],
     "LUAR_NEGERI": [
         "luar negeri", "global market", "pasar global", "global index", "global indices",
@@ -202,31 +223,13 @@ KATEGORI_PORTOFOLIO = {
         "nikkei", "nikkei 225", "topix", "bursa jepang", "bursa tokyo",
         "hang seng", "hsi", "bursa hong kong",
         "shanghai composite", "sse", "szse", "bursa tiongkok", "bursa shanghai", "bursa shenzhen",
-        "kospi", "bursa korea", "bursa selatan",
-        "straits times", "sti", "bursa singapura", "sgx",
-        "ftse 100", "bursa london", "london stock exchange", "lse",
-        "dax", "bursa jerman", "bursa frankfurt",
-        "cac 40", "bursa prancis", "bursa paris",
-        "eurostoxx", "stoxx 600", "bursa eropa", "euronext",
-        "asx 200", "bursa australia",
-        "bse sensex", "nifty 50", "bursa india",
-        "bursa thailand", "set index", "bursa filipina", "psei",
-        "bursa vietnam", "bursa malaysia", "bursa indonesia",
-        "emerging market", "pasar berkembang", "em market",
-        "foreign exchange", "forex", "fx", "mata uang asing",
-        "eur/usd", "usd/jpy", "usd/cny", "usd/sgd", "gbp/usd",
-        "offshore", "capital outflow", "capital inflow", "foreign investment",
-        "multi national company", "multinational", "mnc",
-        "economic data", "manufacturing pmi", "services pmi",
-        "trade deficit", "trade surplus", "tariff", "bea masuk",
-        "apple", "microsoft", "nvidia", "tesla", "amazon", "meta", "google",
-        "berita luar negeri", "berita internasional", "internasional",
-        "inflasi global", "resesi global", "pertumbuhan global", "global growth", "Malaysia", "Singapura",
-        "Tiongkok", "China", "Amerika Serikat", "AS", "Jepang", "Korea Selatan", "India", "Eropa", "Inggris",
+        "kospi", "bursa korea", "straits times", "sti", "bursa singapura", "sgx",
+        "ftse 100", "bursa london", "dax", "cac 40", "asx 200", "nifty 50",
+        "china", "amerika serikat", "as", "jepang", "korea selatan", "india", "eropa", "inggris"
     ],
     "UMUM": [
         "cpns", "seleksi cpns", "energi", "kelistrikan", "bbm", "daya beli",
-        "Indeks", "Bencana", "Anime", "Game",
+        "indeks", "bencana", "anime", "game",
     ]
 }
 
@@ -344,11 +347,9 @@ def cek_status_bursa(dt_obj):
 
 
 def tentukan_kategori_aset(teks_lower):
-    # Pre-compiled patterns grouped by kategori agar O(n) loop tanpa rebuild regex
     for kat, patterns in _KATEGORI_PATTERNS.items():
         for pat in patterns:
             if pat.search(teks_lower):
-                # Mapping kategori -> label output
                 if kat in ("SAHAM_EMITEN", "SEKTOR_SAHAM"):
                     return "SAHAM"
                 if kat in ("ETF", "REKSADANA"):
@@ -357,6 +358,16 @@ def tentukan_kategori_aset(teks_lower):
                     return "EMAS_KOMODITAS"
                 if kat in ("MAKRO_INDONESIA", "MAKRO_GLOBAL", "REGULASI"):
                     return "MAKRO_REGULASI"
+                if kat == "POLITIK":
+                    return "POLITIK"
+                if kat == "LOKAL_KALBAR_NGABANG":
+                    return "LOKAL_KALBAR_NGABANG"
+                if kat == "KESEHATAN":
+                    return "KESEHATAN"
+                if kat == "INSTITUSI":
+                    return "INSTITUSI"
+                if kat == "ASEAN":
+                    return "ASEAN"
                 if kat == "TEKNOLOGI":
                     return "TEKNOLOGI"
                 if kat == "LUAR_NEGERI":

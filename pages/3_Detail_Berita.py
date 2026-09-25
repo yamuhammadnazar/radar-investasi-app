@@ -236,12 +236,52 @@ def tampilkan_konten_tab(df_sub: pd.DataFrame, tab_prefix: str = ""):
 tab_labels = [
     f"📰 Semua ({len(df_for_tabs)})",
     f"📈 Saham ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'SAHAM']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"💼 ETF & RD ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'REKSADANA_ETF']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"🥇 Emas ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'EMAS_KOMODITAS']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"🏛️ Makro ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'MAKRO_REGULASI']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"📂 Umum ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'UMUM']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
+    f"🏛️ Politik ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'POLITIK']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
+    f"📍 Kalbar & Ngabang ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'LOKAL_KALBAR_NGABANG']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
+    f"🩺 Kesehatan ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'KESEHATAN']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
+    f"🏢 Institusi ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'INSTITUSI']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
+    f"🌏 ASEAN ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'ASEAN']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
     f"⭐ Tersimpan ({len(st.session_state['bookmarked_links'])})",
 ]
+
+t1, t2, t3, t4, t5, t6, t7 = st.tabs(tab_labels)
+
+with t1:
+    tampilkan_konten_tab(df_for_tabs, tab_prefix="t1")
+with t2:
+    if 'Kategori Aset' in df_for_tabs.columns:
+        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'SAHAM'], tab_prefix="t2")
+    else:
+        st.info("Kolom Kategori Aset tidak tersedia.")
+with t3:
+    if 'Kategori Aset' in df_for_tabs.columns:
+        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'POLITIK'], tab_prefix="t3")
+    else:
+        st.info("Kolom Kategori Aset tidak tersedia.")
+with t4:
+    if 'Kategori Aset' in df_for_tabs.columns:
+        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'LOKAL_KALBAR_NGABANG'], tab_prefix="t4")
+    else:
+        st.info("Kolom Kategori Aset tidak tersedia.")
+with t5:
+    if 'Kategori Aset' in df_for_tabs.columns:
+        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'KESEHATAN'], tab_prefix="t5")
+    else:
+        st.info("Kolom Kategori Aset tidak tersedia.")
+with t6:
+    if 'Kategori Aset' in df_for_tabs.columns:
+        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'INSTITUSI'], tab_prefix="t6")
+    else:
+        st.info("Kolom Kategori Aset tidak tersedia.")
+with t7:
+    if 'Link' in df_for_tabs.columns:
+        df_saved = df_for_tabs[df_for_tabs['Link'].isin(st.session_state['bookmarked_links'])]
+    else:
+        df_saved = pd.DataFrame()
+    if df_saved.empty:
+        st.info("📭 Belum ada berita yang ditandai (Bookmark).")
+    else:
+        tampilkan_konten_tab(df_saved, tab_prefix="t7")
 
 t1, t2, t3, t4, t5, t6, t7 = st.tabs(tab_labels)
 
