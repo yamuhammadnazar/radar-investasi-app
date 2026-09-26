@@ -1189,12 +1189,12 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
         st.markdown("### ⚡ Optimasi Performa")
         max_workers = st.slider(
             "Worker Paralel:",
-            min_value=1, max_value=15, value=8,
+            min_value=1, max_value=15, value=5,
             help="Jumlah thread paralel. Rekomendasi: 6-10 untuk keseimbangan kecepatan & rate-limit."
         )
         max_artikel_per_portal = st.slider(
             "Maks Artikel per Portal:",
-            min_value=5, max_value=50, value=40,
+            min_value=5, max_value=50, value=50,
             help="Batas artikel yang di-scrape per portal."
         )
 
