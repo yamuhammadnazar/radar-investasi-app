@@ -19,6 +19,8 @@ from .cache import (
     cache_clear_expired,
     cache_get_parsed,
     cache_set_parsed,
+    invalidasi_cache_parsed_jika_perlu,
+    SCHEMA_KATEGORI_VERSION,
 )
 from .http_client import get_http_session, safe_request, safe_post
 from .portals import aturan_portal
@@ -51,6 +53,8 @@ __all__ = [
     "cache_clear_expired",
     "cache_get_parsed",
     "cache_set_parsed",
+    "invalidasi_cache_parsed_jika_perlu",
+    "SCHEMA_KATEGORI_VERSION",
     # http
     "get_http_session",
     "safe_request",

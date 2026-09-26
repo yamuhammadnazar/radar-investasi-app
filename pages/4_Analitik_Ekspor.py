@@ -17,6 +17,7 @@ from utils_ui import (
     inject_shared_css, hero_header, section_header, metric_badge,
     kategori_indeks, hitung_sentimen_counts, get_top_movers, hitung_risk_score_per_trigger,
     hitung_diversity_index, get_dataframe_or_stop,
+    KATEGORI_UTAMA, label_kategori,
 )
 
 # =====================================================================
@@ -69,6 +70,16 @@ with st.container(border=True):
         selected_sumber = st.multiselect("📡 Filter Sumber Portal", options=list_sumber, default=[], key="ex_sum")
     with col_f3:
         selected_sentimen = st.multiselect("🎯 Filter Sentimen", options=list_sentimen, default=[], key="ex_sent")
+
+    # Distribusi kategori di data (transparansi kategori baru: Politik, Kalbar &
+    # Ngabang, Kesehatan, Institusi, ASEAN) sebelum user mengekspor.
+    if list_kategori:
+        hitung_kat = df_raw['Kategori Aset'].value_counts().to_dict()
+        urutan_kat = [k for k, _ in KATEGORI_UTAMA] + [k for k in list_kategori if k not in {k2 for k2, _ in KATEGORI_UTAMA}]
+        baris_kat = " · ".join(
+            f"{label_kategori(k)}: **{hitung_kat[k]}**" for k in urutan_kat if k in hitung_kat
+        )
+        st.caption(f"📊 Sebaran kategori pada data saat ini — {baris_kat}")
 
 st.markdown("<br>", unsafe_allow_html=True)
 

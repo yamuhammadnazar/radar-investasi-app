@@ -171,5 +171,58 @@ def get_cache_stats() -> dict:
         return {"total": 0, "active": 0, "expired": 0, "size_mb": 0.0}
 
 
+# ============================================================
+# INVALIDASI CACHE SAAT SKEMA KATEGORI BERUBAH
+# ============================================================
+# `cache_set_parsed` menyimpan hasil scrape + analisis LENGKAP, termasuk
+# kolom "Kategori Aset". Ketika daftar kategori/kata kunci di app.py berubah
+# (mis. penambahan Politik, Kalbar & Ngabang, Kesehatan, Institusi, ASEAN),
+# entry parsed lama akan tetap membawa kategori versi lama hingga TTL habis
+# (6 jam). Akibatnya kategori baru "tidak muncul" walau kode sudah benar.
+#
+# Solusi: versi skema kategori disimpan di tabel cache_meta. Bila versi di
+# kode berbeda dengan yang tersimpan, seluruh entry parsed dihapus sekali.
+SCHEMA_KATEGORI_VERSION = 2
+
+
+def invalidasi_cache_parsed_jika_perlu(versi: int = SCHEMA_KATEGORI_VERSION) -> int:
+    """Hapus cache 'parsed' bila versi skema kategori berubah.
+
+    Return jumlah entry parsed yang dihapus (0 bila tidak perlu).
+    Dipanggil otomatis saat modul diimpor.
+    """
+    try:
+        with CACHE_LOCK:
+            conn = _get_conn()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cache_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            row = conn.execute(
+                "SELECT value FROM cache_meta WHERE key = 'schema_kategori_version'"
+            ).fetchone()
+            versi_tersimpan = int(row[0]) if row and str(row[0]).isdigit() else 0
+            if versi_tersimpan >= versi:
+                return 0
+            cur = conn.execute("DELETE FROM cache WHERE key LIKE 'parsed:%'")
+            dihapus = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+            conn.execute(
+                "INSERT OR REPLACE INTO cache_meta (key, value) VALUES (?, ?)",
+                ("schema_kategori_version", str(versi)),
+            )
+            conn.commit()
+            return dihapus
+    except Exception:
+        # Cache hanya optimasi — kegagalan invalidasi tidak boleh
+        # menghentikan aplikasi.
+        return 0
+
+
 # Auto-init saat modul diimpor
 init_cache_db()
+# FIX: pastikan artikel yang ter-cache SEBELUM kategori baru ditambahkan
+# tidak lagi dipakai, sehingga hasil scan berikutnya sudah memakai kategori
+# Politik / Kalbar-Ngabang / Kesehatan / Institusi / ASEAN.
+invalidasi_cache_parsed_jika_perlu()

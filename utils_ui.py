@@ -37,6 +37,71 @@ PALETTE = {
 SENTIMEN_COLORS = [PALETTE["pos"], PALETTE["net"], PALETTE["neg"]]
 SENTIMEN_ORDER = ["POSITIF", "NETRAL", "NEGATIF"]
 
+# =====================================================================
+# DAFTAR KATEGORI RESMI (SATU SUMBER KEBENARAN UNTUK SELURUH HALAMAN)
+# =====================================================================
+# Nilai ini identik dengan label yang dihasilkan PEMETAAN_KATEGORI di app.py
+# (kolom "Kategori Aset"). Halaman Detail Berita, Ekspor, Ringkasan Live,
+# dan Analisis Media Portal memakai tabel ini agar tabs/filter kategori
+# tidak pernah "lupa" menampilkan kategori baru.
+KATEGORI_UTAMA = [
+    ("SAHAM", "📈 Saham"),
+    ("POLITIK", "🏛️ Politik"),
+    ("LOKAL_KALBAR_NGABANG", "📍 Kalbar & Ngabang"),
+    ("KESEHATAN", "🩺 Kesehatan"),
+    ("INSTITUSI", "🏢 Institusi"),
+    ("ASEAN", "🌏 ASEAN"),
+    ("TEKNOLOGI", "💻 Teknologi"),
+    ("LUAR_NEGERI", "🌐 Luar Negeri"),
+    ("REKSADANA_ETF", "🧺 Reksadana & ETF"),
+    ("EMAS_KOMODITAS", "🥇 Emas & Komoditas"),
+    ("MAKRO_REGULASI", "🏦 Makro & Regulasi"),
+    ("UMUM", "📋 Umum"),
+]
+
+# Warna badge per kategori (dipakai heatmap & tooltip bila diperlukan).
+KATEGORI_WARNA = {
+    "SAHAM": PALETTE["primary_alt"],
+    "POLITIK": "#f0883e",
+    "LOKAL_KALBAR_NGABANG": "#3fb950",
+    "KESEHATAN": "#f85149",
+    "INSTITUSI": "#a371f7",
+    "ASEAN": "#39c5cf",
+    "TEKNOLOGI": "#58a6ff",
+    "LUAR_NEGERI": "#8b949e",
+    "REKSADANA_ETF": "#d29922",
+    "EMAS_KOMODITAS": "#e3b341",
+    "MAKRO_REGULASI": "#7ee787",
+    "UMUM": "#6e7681",
+}
+
+
+def label_kategori(nilai: str) -> str:
+    """Ubah nilai kolom 'Kategori Aset' menjadi label tampilan beremoji.
+
+    Kategori yang belum terdaftar tetap ditampilkan apa adanya, sehingga
+    data lama (hasil scan sebelum kategori baru ditambahkan) tidak hilang.
+    """
+    for kode, label in KATEGORI_UTAMA:
+        if kode == nilai:
+            return label
+    return str(nilai) if nilai else "Kategori Lain"
+
+
+def kategori_tersedia(df: pd.DataFrame) -> list:
+    """Kembalikan daftar (kode, label) kategori yang benar-benar ada di data.
+
+    Gabungan kategori resmi + kategori lain yang ditemukan di dataframe,
+    diurutkan sesuai urutan KATEGORI_UTAMA (kategori tak dikenal di akhir).
+    """
+    if df is None or "Kategori Aset" not in getattr(df, "columns", []):
+        return list(KATEGORI_UTAMA)
+    ada = {str(v) for v in df["Kategori Aset"].dropna().unique()}
+    hasil = [(k, l) for k, l in KATEGORI_UTAMA if k in ada]
+    hasil += [(k, k) for k in sorted(ada - {k for k, _ in KATEGORI_UTAMA})]
+    return hasil
+
+
 # Stopwords Indonesia + istilah finansial generik
 STOPWORDS_ID = frozenset([
     "yang", "di", "dan", "dengan", "untuk", "pada", "ke", "karena",

@@ -172,31 +172,77 @@ KATEGORI_PORTOFOLIO = {
         "pemerintah kabupaten landak", "pemerintah provinsi kalimantan barat", "dprd kalbar", "dprd landak", "bps"
     ],
     # --- KATEGORI BARU ---
+    # FIX: "suara" dihapus dari POLITIK — kata ini sangat umum ("suara", portal
+    # Suara.com, "suara konsumen") dan menyebabkan false positive besar yang
+    # membuat berita non-politik berlabel POLITIK.
+    # CATATAN PRIORITAS: urutan dict menentukan fallback untuk kata kunci
+    # yang tumpang tindih antar kategori (mis. "landak" ada di LOKAL & juga
+    # nama daerah di berita kesehatan; "menteri" ada di POLITIK & dipakai
+    # berita institusi). Kata kunci yang SANGAT spesifik sengaja diletakkan
+    # di kategori tematiknya, dan urutan iterasi di atur oleh _KATEGORI_PRIORITAS.
     "POLITIK": [
-        "politik", "pemilu", "pilkada", "partai politik", "koalisi", "parlemen", 
-        "kabinet", "menteri", "kampanye", "suara", "legislatif", "eksekutif", "pemilihan",
-        "fraksi", "ketua umum", "debat publik"
+        "politik", "berita politik", "pemilu", "pilkada", "pilpres", "pileg", "partai politik",
+        "koalisi", "oposisi", "parlemen", "kabinet", "menteri", "kampanye", "legislatif",
+        "eksekutif", "pemilihan umum", "fraksi", "ketua umum", "debat publik", "calon presiden",
+        "calon wakil presiden", "capres", "cawapres", "caleg", "dpr", "dprd", "mpr", "dpd",
+        "presiden", "wakil presiden", "gubernur", "bupati", "walikota", "menteri keuangan",
+        "survei politik", "elektabilitas", "politikus", "konstitusi", "pemerintah", "pemda",
+        "kebijakan politik", "kampanye pemilu", "kotak kosong", "real count", "quick count",
+        "kotak suara", "tps", "sengketa pemilu"
     ],
     "LOKAL_KALBAR_NGABANG": [
-        "kalimantan barat", "kalbar", "pontianak", "ngabang", "landak", "kabupaten landak",
+        "kalimantan barat", "kalbar", "pontianak", "ngabang", "kabupaten landak",
         "singkawang", "sintang", "mempawah", "ketapang", "sanggau", "sambas", "kubu raya",
         "kayong utara", "melawi", "sekadau", "bengkayang", "pemkab landak", "gubernur kalbar",
-        "bupati landak", "wako pontianak"
+        "bupati landak", "wako pontianak", "pemprov kalbar", "dprd kalbar", "dprd landak",
+        "kecamatan ngabang", "kapuas hulu", "sungai raya", "tayan",
+        "mempawah hulu", "ngabang landak", "kalimantan", "banjarmasin", "palangkaraya",
+        "samarinda", "balikpapan", "tarakan", "kalimantan tengah", "kalimantan selatan",
+        "kalimantan timur", "kalimantan utara", "ikn", "nusantara", "tanah dayak",
+        "dayak", "khatulistiwa", "equator", "polda kalbar", "korem kalbar", "kota pontianak",
+        "kabupaten sintang", "kabupaten bengkayang", "kabupaten sambas", "kabupaten sanggau",
+        "kabupaten ketapang", "kabupaten mempawah", "kabupaten kubu raya", "kota singkawang",
+        # FIX: "landak", "kubu", "pemkab" (generik) sengaja TIDAK dipakai
+        # sebagai kata kunci berdiri sendiri — lihat catatan di _KATA_KUNCI_LOKAL_KUAT.
     ],
     "KESEHATAN": [
-        "kesehatan", "rsud", "rumah sakit", "menkes", "kementerian kesehatan", "bpjs kesehatan",
-        "vaksin", "wabah", "virus", "klinik", "dokter", "obat", "stunting", "gizi",
-        "puskesmas", "epidemi", "obat murah", "bpom"
+        "kesehatan", "berita kesehatan", "rsud", "rumah sakit", "menkes", "kementerian kesehatan",
+        "kemenkes", "bpjs kesehatan", "bpjs", "vaksin", "vaksinasi", "imunisasi", "wabah",
+        "virus", "pandemi", "endemi", "klinik", "puskesmas", "dokter", "dokter spesialis",
+        "perawat", "obat", "obat-obatan", "stunting", "gizi", "gizi buruk", "epidemi",
+        "obat murah", "bpom", "pusat kesehatan", "pasien", "demam berdarah", "dbd", "dengue",
+        "malaria", "tuberkulosis", "tbc", "covid-19", "covid", "wabah penyakit", "kesehatan ibu",
+        "kesehatan anak", "jiwa", "kesehatan mental", "gagal ginjal", "penyakit", "alkes",
+        "jkn", "kartu indonesia sehat", "klaim bpjs", "rumah sakit umum", "posyandu",
+        "air bersih", "sanitasi", "kekebalan", "vaksinasi massal"
     ],
     "INSTITUSI": [
-        "institusi", "lembaga negara", "kpk", "polri", "kejaksaan agung", "tni",
-        "mahkamah agung", "komnas ham", "ombudsman", "bpk", "bawaslu", "kpu",
-        "mabes polri", "polda kalbar", "polres landak"
+        "institusi", "institusi negara", "lembaga", "lembaga negara", "lembaga pemerintah",
+        "kpk", "komisi pemberantasan korupsi", "polri", "kepolisian", "kejaksaan agung",
+        "kejaksaan", "tni", "tentara nasional indonesia", "mabes polri", "polda", "polres",
+        "mahkamah agung", "mahkamah konstitusi", "komisi yudisial", "komnas ham",
+        "ombudsman", "bpk", "bpkp", "bawaslu", "kpu", "kemenkumham", "bkn", "menpanrb",
+        "polda kalbar", "polres landak", "peradilan", "pengadilan", "kejari", "penyidikan",
+        "penyelidikan", "tersangka", "gratifikasi", "suap", "densus 88",
+        # FIX: singkatan pendek yang rawan false positive dihapus/dipanjangkan:
+        # "laos" (bentrok nama negara Laos), "lan" (kata umum), "mk"/"ky"
+        # (sering muncul sebagai potongan kata lain).
+        "lembaga sandi negara", "bssn", "bnpt", "bappenas", "brin", "asn", "pegawai negeri",
+        "aparat penegak hukum", "penegakan hukum", "lembaga antikorupsi"
     ],
     "ASEAN": [
-        "asean", "asia tenggara", "ktt asean", "malaysia", "singapura", "thailand",
-        "filipina", "vietnam", "brunei darussalam", "myanmar", "kamboja", "laos", "timor leste",
-        "sekretariat asean", "ekonomi asean"
+        "asean", "asia tenggara", "asean summit", "ktt asean", "ktt ke-asean", "sekretariat asean",
+        "ekonomi asean", "masyarakat ekonomi asean", "mea", "apec", "rcep", "afta",
+        "perhimpunan bangsa-bangsa asia tenggara", "jakarta asean", "keketuaan asean",
+        "asean+3", "east asia summit", "zopfan", "kawasan asia tenggara", "negara asean",
+        "negara-negara asean", "anggota asean", "asean outlook", "asean chair",
+        "malaysia", "kuala lumpur", "johor", "sabah", "sarawak", "putrajaya",
+        "singapura", "singapore", "thailand", "bangkok", "phuket", "filipina", "manila",
+        "vietnam", "hanoi", "ho chi minh", "brunei", "brunei darussalam", "bandar seri begawan",
+        "myanmar", "burma", "yangon", "naypyidaw", "kamboja", "cambodia", "phnom penh",
+        "timor leste", "timor-leste", "dili",
+        "mata uang asean", "kerja sama asean", "kawasan terorisme asean",
+        "lao", "laos pdr"
     ],
     "TEKNOLOGI": [
         "kecerdasan buatan", "artificial intelligence", "ai", "chatgpt", "gpt",
@@ -255,6 +301,23 @@ STOPWORDS_ID = set([
 kata_kunci_portofolio = [kw for sublist in KATEGORI_PORTOFOLIO.values() for kw in sublist]
 
 # ============================================================
+# URUTAN PRIORITAS KLASIFIKASI KATEGORI
+# ============================================================
+# `tentukan_kategori_aset` mengembalikan hasil KECOCOKAN PERTAMA, sehingga
+# urutan di sini sangat menentukan. Kategori TEMATIK yang khas (lokal, asean,
+# kesehatan, institusi, politik, teknologi) diprioritaskan di atas kategori
+# generik (makro/umum) supaya berita "Vaksinasi di Landak" tidak dilabeli
+# MAKRO_REGULASI dan berita "Penerbangan Vietnam-Thailand" tidak dilabeli
+# LUAR_NEGERI. Khusus POLITIK sengaja diletakkan setelah LOKAL & ASEAN agar
+# gelar jabatan (bupati/gubernur/menteri) tidak menelan berita daerah.
+URUTAN_PRIORITAS_KATEGORI = [
+    "SAHAM_EMITEN", "ETF", "REKSADANA", "EMAS", "KOMODITAS", "SEKTOR_SAHAM",
+    "LOKAL_KALBAR_NGABANG", "ASEAN", "KESEHATAN", "INSTITUSI", "TEKNOLOGI",
+    "POLITIK", "REGULASI", "MAKRO_INDONESIA", "MAKRO_GLOBAL", "LUAR_NEGERI", "UMUM",
+]
+
+
+# ============================================================
 # PRE-COMPILED REGEX untuk performa
 # ============================================================
 # Membuat satu pola besar sekali saja (O(1) kompilasi) dibanding
@@ -266,14 +329,67 @@ _KK_PATTERN = re.compile(
 
 # Pre-compiled per kategori untuk tentukan_kategori_aset (menghindari
 # mem-build ulang ~80 pola regex di hot path).
+# FIX: item dict disusun ulang mengikuti URUTAN_PRIORITAS_KATEGORI, dan
+# kategori yang belum terdaftar di urutan tetap disertakan di akhir agar
+# tidak pernah hilang dari proses klasifikasi.
 _KATEGORI_PATTERNS = {
     kat: [
         re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
-        for kw in sorted(set(keywords), key=len, reverse=True)
+        for kw in sorted(set(KATEGORI_PORTOFOLIO[kat]), key=len, reverse=True)
     ]
-    for kat, keywords in KATEGORI_PORTOFOLIO.items()
+    for kat in (
+        [k for k in URUTAN_PRIORITAS_KATEGORI if k in KATEGORI_PORTOFOLIO]
+        + [k for k in KATEGORI_PORTOFOLIO if k not in URUTAN_PRIORITAS_KATEGORI]
+    )
 }
 
+
+
+# ============================================================
+# PEMETAAN KATEGORI MENTAH -> LABEL RINGKAS
+# ============================================================
+# Label inilah yang tersimpan di kolom "Kategori Aset" dan dipakai
+# konsisten oleh seluruh halaman (tabs Detail Berita, filter Ekspor,
+# komposisi kategori di Ringkasan Live, heatmap Media Portal).
+# Satu tabel eksplisit menggantikan rantai if/elif agar kategori baru
+# tidak bisa "hilang" (jatuh ke fallback MAKRO_REGULASI) tanpa disadari.
+PEMETAAN_KATEGORI = {
+    "SAHAM_EMITEN": "SAHAM",
+    "SEKTOR_SAHAM": "SAHAM",
+    "ETF": "REKSADANA_ETF",
+    "REKSADANA": "REKSADANA_ETF",
+    "EMAS": "EMAS_KOMODITAS",
+    "KOMODITAS": "EMAS_KOMODITAS",
+    "MAKRO_INDONESIA": "MAKRO_REGULASI",
+    "MAKRO_GLOBAL": "MAKRO_REGULASI",
+    "REGULASI": "MAKRO_REGULASI",
+    "POLITIK": "POLITIK",
+    "LOKAL_KALBAR_NGABANG": "LOKAL_KALBAR_NGABANG",
+    "KESEHATAN": "KESEHATAN",
+    "INSTITUSI": "INSTITUSI",
+    "ASEAN": "ASEAN",
+    "TEKNOLOGI": "TEKNOLOGI",
+    "LUAR_NEGERI": "LUAR_NEGERI",
+    "UMUM": "UMUM",
+}
+
+# Label tampilan (emoji + nama) untuk setiap label kategori.
+# Dipakai halaman Detail Berita & Ekspor agar penamaan kategori
+# tidak lagi ditulis ulang di tiap file (satu sumber kebenaran).
+LABEL_KATEGORI = {
+    "SAHAM": "📈 Saham",
+    "POLITIK": "🏛️ Politik",
+    "LOKAL_KALBAR_NGABANG": "📍 Kalbar & Ngabang",
+    "KESEHATAN": "🩺 Kesehatan",
+    "INSTITUSI": "🏢 Institusi",
+    "ASEAN": "🌏 ASEAN",
+    "TEKNOLOGI": "💻 Teknologi",
+    "LUAR_NEGERI": "🌐 Luar Negeri",
+    "REKSADANA_ETF": "🧺 Reksadana & ETF",
+    "EMAS_KOMODITAS": "🥇 Emas & Komoditas",
+    "MAKRO_REGULASI": "🏦 Makro & Regulasi",
+    "UMUM": "📋 Umum",
+}
 
 
 # ============================================================
@@ -350,30 +466,9 @@ def tentukan_kategori_aset(teks_lower):
     for kat, patterns in _KATEGORI_PATTERNS.items():
         for pat in patterns:
             if pat.search(teks_lower):
-                if kat in ("SAHAM_EMITEN", "SEKTOR_SAHAM"):
-                    return "SAHAM"
-                if kat in ("ETF", "REKSADANA"):
-                    return "REKSADANA_ETF"
-                if kat in ("EMAS", "KOMODITAS"):
-                    return "EMAS_KOMODITAS"
-                if kat in ("MAKRO_INDONESIA", "MAKRO_GLOBAL", "REGULASI"):
-                    return "MAKRO_REGULASI"
-                if kat == "POLITIK":
-                    return "POLITIK"
-                if kat == "LOKAL_KALBAR_NGABANG":
-                    return "LOKAL_KALBAR_NGABANG"
-                if kat == "KESEHATAN":
-                    return "KESEHATAN"
-                if kat == "INSTITUSI":
-                    return "INSTITUSI"
-                if kat == "ASEAN":
-                    return "ASEAN"
-                if kat == "TEKNOLOGI":
-                    return "TEKNOLOGI"
-                if kat == "LUAR_NEGERI":
-                    return "LUAR_NEGERI"
-                if kat == "UMUM":
-                    return "UMUM"
+                # Tabel pemetaan kategori mentah -> label ringkas yang dipakai UI
+                # (Tabs halaman Detail Berita, filter Ekspor, grafik kategori).
+                return PEMETAAN_KATEGORI.get(kat, "MAKRO_REGULASI")
     return "MAKRO_REGULASI"
 
 
@@ -727,7 +822,11 @@ st.markdown("""
             <span class="tag">ETF & Reksadana</span>
             <span class="tag">Komoditas</span>
             <span class="tag">Makro & Regulasi</span>
-            <span class="tag">Umum (CPNS)</span>
+            <span class="tag">Politik</span>
+            <span class="tag">Kalbar & Ngabang</span>
+            <span class="tag">Kesehatan</span>
+            <span class="tag">Institusi</span>
+            <span class="tag">ASEAN</span>
         </div>
     </div>
 """, unsafe_allow_html=True)
@@ -813,12 +912,39 @@ with st.expander("⚙️ Konfigurasi Radar & Notifikasi", expanded=False):
     with tab1:
         st.markdown("### Pilih Kanal Berita")
         semua_portal_keys = list(aturan_portal.keys())
+
+        # --- FILTER CEPAT BERDASARKAN KATEGORI TOPIK ---
+        # Menandai portal yang memang khusus menyediakan kategori baru
+        # (Politik, Kalbar/Ngabang, Kesehatan, Institusi, ASEAN) supaya user
+        # bisa langsung memindai topik tersebut tanpa memilih satu per satu.
+        kelompok_portal = {
+            "🏛️ Politik": [k for k in semua_portal_keys if "(Politik)" in k or "(Nasional)" in k],
+            "📍 Kalbar & Ngabang": [k for k in semua_portal_keys if "Kalbar" in k or "Landak" in k or "Ngabang" in k],
+            "🩺 Kesehatan": [k for k in semua_portal_keys if "(Kesehatan)" in k],
+            "🏢 Institusi": [k for k in semua_portal_keys if "(Institusi)" in k],
+            "🌏 ASEAN": [k for k in semua_portal_keys if "(ASEAN)" in k or "(Regional" in k],
+        }
+        pilihan_cepat = st.multiselect(
+            "⚡ Filter Cepat Kategori Topik:",
+            options=list(kelompok_portal.keys()),
+            default=[],
+            help="Menambahkan portal yang relevan dengan topik terpilih ke daftar kanal.",
+        )
+        portal_tambahan_kategori = sorted({
+            p for topik in pilihan_cepat for p in kelompok_portal[topik]
+        })
+
         pilih_semua = st.checkbox("Pilih Semua Portal", value=True)
+        default_portal = semua_portal_keys if pilih_semua else portal_tambahan_kategori
         portal_terpilih = st.multiselect(
             "Filter Kanal:",
             options=semua_portal_keys,
-            default=semua_portal_keys if pilih_semua else []
+            default=default_portal,
         )
+        if portal_tambahan_kategori:
+            # Pastikan portal dari filter cepat benar-benar ikut dipindai,
+            # walaupun user sebelumnya mencentang "Pilih Semua" lalu mengedit manual.
+            portal_terpilih = sorted(set(portal_terpilih) | set(portal_tambahan_kategori))
 
         pilihan_rentang = st.select_slider(
             "Rentang Waktu Pemindaian:",

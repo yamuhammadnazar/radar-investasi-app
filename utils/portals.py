@@ -555,20 +555,311 @@ aturan_portal = {
         "tag": "div", "class": "post-body entry-content", "butuh_page_all": False,
         "tanggal_terpercaya": True
     },
-    "Landak Pusat Informasi (Blogger)": {
-        "rss_asli": "https://www.landakpusatinformasi.com/feeds/posts/default?alt=rss",
-        "rss_google": "",
-        "tag": "div", "class": "post-body entry-content", "butuh_page_all": False,
-        "tanggal_terpercaya": True
-    },
     "Kalbar Online (Google News)": {
+        # FIX: query diperkaya istilah lokal supaya berita Kab. Landak/Ngabang
+        # benar-benar terjaring (sebelumnya hanya kata umum "kalimantan barat").
         "rss_asli": "",
-        "rss_google": "https://news.google.com/rss/search?q=kalimantan+barat+OR+pontianak+OR+ngabang+OR+landak&hl=id&gl=ID&ceid=ID:id",
+        "rss_google": "https://news.google.com/rss/search?q=kalimantan+barat+OR+pontianak+OR+ngabang+OR+landak+OR+singkawang+OR+sintang+OR+mempawah&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "detail-content", "butuh_page_all": False
     },
     "Antara Kalbar": {
         "rss_asli": "",
         "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com/kalimantan-barat&hl=id&gl=ID&ceid=ID:id",
         "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
-    }
+    },
+    "Kompas Kalbar": {
+        # Regional Kompas untuk Kalimantan Barat (Pontianak, Landak/Ngabang, dll)
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:regional.kompas.com+(kalimantan+barat+OR+pontianak+OR+landak)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True
+    },
+    "Tribun Pontianak (Kalbar)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:pontianak.tribunnews.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False
+    },
+    "Suara Kalbar": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kalbar.suara.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+
+    # ========================================================
+    # KATEGORI: POLITIK
+    # ========================================================
+    "CNN Indonesia (Politik)": {
+        "rss_asli": "https://www.cnnindonesia.com/nasional/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnnindonesia.com+(politik+OR+pemilu+OR+pilkada+OR+partai+OR+dpr)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail_text", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Tempo (Politik)": {
+        "rss_asli": "https://rss.tempo.co/politik",
+        "rss_google": "https://news.google.com/rss/search?q=site:tempo.co/politik&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Antara (Politik)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com+(politik+OR+pemilu+OR+pilkada)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
+    },
+    "Detik (Politik)": {
+        # FIX: rss.detik.com subdomain down — andalkan rss_google.
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:news.detik.com+(politik+OR+pemilu+OR+dpr)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+    },
+    "Kompas (Politik)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:nasional.kompas.com+(politik+OR+pemilu+OR+pilkada)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True
+    },
+    "Republika (Politik)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:republika.co.id+(politik+OR+pemilu+OR+parlemen)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": False
+    },
+    "Kumparan (Politik)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kumparan.com+(politik+OR+pemilu+OR+pilkada)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "Textweb__StyledText-sc-1c4do7h-0", "butuh_page_all": False
+    },
+    "Liputan6 (Politik)": {
+        # FIX: endpoint valid Liputan6 adalah /feed/rss/<kanal>.
+        "rss_asli": "https://www.liputan6.com/feed/rss/politik",
+        "rss_google": "https://news.google.com/rss/search?q=site:liputan6.com/politik&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content-body__item", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Katadata (Politik)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:katadata.co.id+(politik+OR+pemilu)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-body", "butuh_page_all": False
+    },
+
+    # ========================================================
+    # KATEGORI: BERITA LOKAL KALIMANTAN BARAT & NGABANG
+    # ========================================================
+    "Antara (Kalimantan Barat)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com+(kalimantan+barat+OR+pontianak+OR+ngabang+OR+landak)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
+    },
+    "Tribun (Kalimantan Barat)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:tribunnews.com+(kalimantan+barat+OR+pontianak+OR+ngabang+OR+landak)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False
+    },
+    "Detik (Kalimantan Barat)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:detik.com+(kalimantan+barat+OR+pontianak+OR+ngabang+OR+landak)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+    },
+    "Kompas (Kalimantan Barat)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kompas.com+(kalimantan+barat+OR+pontianak+OR+landak)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True
+    },
+    "Suara (Kalimantan Barat)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:suara.com+(kalimantan+barat+OR+pontianak)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+
+    # ========================================================
+    # KATEGORI: KESEHATAN
+    # ========================================================
+    "CNN Indonesia (Kesehatan)": {
+        "rss_asli": "https://www.cnnindonesia.com/gaya-hidup/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnnindonesia.com+(kesehatan+OR+rumah+sakit+OR+vaksin)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail_text", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Antara (Kesehatan)": {
+        "rss_asli": "https://www.antaranews.com/rss/kesehatan.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com+(kesehatan+OR+rumah+sakit+OR+vaksin)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True,
+        "tanggal_terpercaya": True
+    },
+    "Detik (Kesehatan)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:health.detik.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+    },
+    "Kompas (Kesehatan)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:health.kompas.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True
+    },
+    "Liputan6 (Kesehatan)": {
+        # FIX: endpoint valid Liputan6 adalah /feed/rss/<kanal> (bukan /rss/<kanal>).
+        "rss_asli": "https://www.liputan6.com/feed/rss/health",
+        "rss_google": "https://news.google.com/rss/search?q=site:liputan6.com/health&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content-body__item", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Kumparan (Kesehatan)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kumparan.com+(kesehatan+OR+rumah+sakit)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "Textweb__StyledText-sc-1c4do7h-0", "butuh_page_all": False
+    },
+    "Tempo (Kesehatan)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:gaya.tempo.co+(kesehatan+OR+rumah+sakit)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-konten", "butuh_page_all": False
+    },
+    "Republika (Kesehatan)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:republika.co.id+(kesehatan+OR+rumah+sakit+OR+bpjs)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": False
+    },
+    "Pikiran Rakyat (Kesehatan)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:pikiran-rakyat.com+(kesehatan+OR+rumah+sakit)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False
+    },
+
+    # ========================================================
+    # KATEGORI: INSTITUSI (LEMBAGA NEGARA & PENEGAK HUKUM)
+    # ========================================================
+    "Antara (Hukum & Institusi)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com+(kpk+OR+polri+OR+kejaksaan+OR+institusi+OR+lembaga+negara)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True
+    },
+    "Kompas (Hukum & Institusi)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:nasional.kompas.com+(kpk+OR+polri+OR+kejaksaan+OR+lembaga+negara)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True
+    },
+    "Detik (Hukum & Institusi)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:news.detik.com+(kpk+OR+polri+OR+kejaksaan+OR+mahkamah+konstitusi)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail__body-text", "butuh_page_all": True
+    },
+    "Hukumonline": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:hukumonline.com&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content", "butuh_page_all": False
+    },
+    "KPK (Media)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kpk.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False
+    },
+    "Polri (Media)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:polri.go.id+OR+site:humas.polri.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False
+    },
+    "Kementerian Hukum (Media)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kemenkum.go.id+OR+site:kemenkumham.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False
+    },
+    "Mahkamah Konstitusi (Media)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:mkri.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False
+    },
+    "Bawaslu (Media)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:bawaslu.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False
+    },
+    "KPU (Media)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kpu.go.id&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "news-content", "butuh_page_all": False
+    },
+
+    # ========================================================
+    # KATEGORI: NEGARA-NEGARA ASEAN
+    # ========================================================
+    "ASEAN (Google News)": {
+        # Payung topik ASEAN + negara anggota (selain Indonesia).
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=asean+OR+%22asia+tenggara%22+OR+ktt+asean+OR+asean+summit&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Antara (ASEAN & Asia Tenggara)": {
+        "rss_asli": "https://www.antaranews.com/rss/dunia.xml",
+        "rss_google": "https://news.google.com/rss/search?q=site:antaranews.com+(asean+OR+asia+tenggara+OR+malaysia+OR+singapura+OR+thailand+OR+vietnam)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "wrap__article-detail-content", "butuh_page_all": True,
+        "tanggal_terpercaya": True
+    },
+    "CNN Indonesia (ASEAN)": {
+        "rss_asli": "https://www.cnnindonesia.com/internasional/rss",
+        "rss_google": "https://news.google.com/rss/search?q=site:cnnindonesia.com+(asean+OR+asia+tenggara+OR+malaysia+OR+singapura)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail_text", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Kompas (ASEAN)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kompas.com+(asean+OR+asia+tenggara)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "read__content", "butuh_page_all": True
+    },
+    "Kumparan (ASEAN)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=site:kumparan.com+(asean+OR+asia+tenggara)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "Textweb__StyledText-sc-1c4do7h-0", "butuh_page_all": False
+    },
+    "Liputan6 (ASEAN)": {
+        # FIX: endpoint valid Liputan6 adalah /feed/rss/<kanal>.
+        "rss_asli": "https://www.liputan6.com/feed/rss/global",
+        "rss_google": "https://news.google.com/rss/search?q=site:liputan6.com+(asean+OR+asia+tenggara)&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "article-content-body__item", "butuh_page_all": False,
+        "tanggal_terpercaya": True
+    },
+    "Malaysia (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=malaysia+OR+kuala+lumpur+OR+putrajaya+OR+anwar+ibrahim&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Singapura (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=singapura+OR+singapore+OR+%22lee+hsien+loong%22+OR+sgx&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Thailand (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=thailand+OR+bangkok+OR+baht&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Filipina (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=filipina+OR+philippines+OR+manila&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Vietnam (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=vietnam+OR+hanoi+OR+%22ho+chi+minh%22&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Brunei Darussalam (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=brunei+OR+%22brunei+darussalam%22&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Myanmar (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=myanmar+OR+%22junta+militer%22&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Kamboja (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=kamboja+OR+cambodia+OR+%22phnom+penh%22&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Laos (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=laos+OR+vientiane&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
+    "Timor Leste (Google News)": {
+        "rss_asli": "",
+        "rss_google": "https://news.google.com/rss/search?q=%22timor+leste%22+OR+dili&hl=id&gl=ID&ceid=ID:id",
+        "tag": "div", "class": "detail-content", "butuh_page_all": False
+    },
 }

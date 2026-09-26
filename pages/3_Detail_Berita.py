@@ -13,6 +13,7 @@ from utils_ui import (
     PALETTE,
     inject_shared_css, hero_header, section_header, metric_badge,
     status_pill, get_dataframe_or_stop, hitung_sentimen_counts,
+    KATEGORI_UTAMA, label_kategori,
 )
 
 # =====================================================================
@@ -210,7 +211,8 @@ def tampilkan_konten_tab(df_sub: pd.DataFrame, tab_prefix: str = ""):
                     f"**[{r['Trigger/Emiten']}]** &nbsp; "
                     f"{render_badge_sentimen(r['Sentimen'])} &nbsp; "
                     f"{render_badge_bursa(r.get('Status Bursa', '-'))} &nbsp; "
-                    f"<small style='color: #8b949e;'>📰 {r['Sumber']} | ⏱️ {r['Tanggal']}</small>",
+                    f"<small style='color: #8b949e;'>📦 {label_kategori(r.get('Kategori Aset'))} | "
+                    f"📰 {r['Sumber']} | ⏱️ {r['Tanggal']}</small>",
                     unsafe_allow_html=True,
                 )
             with col_btn:
@@ -231,96 +233,48 @@ def tampilkan_konten_tab(df_sub: pd.DataFrame, tab_prefix: str = ""):
 
 
 # =====================================================================
-# Tabs Kategori
+# Tabs Kategori (DINAMIS — mengikuti KATEGORI_UTAMA di utils_ui)
 # =====================================================================
-tab_labels = [
-    f"📰 Semua ({len(df_for_tabs)})",
-    f"📈 Saham ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'SAHAM']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"🏛️ Politik ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'POLITIK']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"📍 Kalbar & Ngabang ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'LOKAL_KALBAR_NGABANG']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"🩺 Kesehatan ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'KESEHATAN']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"🏢 Institusi ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'INSTITUSI']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"🌏 ASEAN ({len(df_for_tabs[df_for_tabs['Kategori Aset'] == 'ASEAN']) if 'Kategori Aset' in df_for_tabs.columns else 0})",
-    f"⭐ Tersimpan ({len(st.session_state['bookmarked_links'])})",
-]
+# FIX INTEGRASI: sebelumnya daftar tab ditulis dua kali secara hardcode dan
+# hanya memuat 6 kategori. Akibatnya kategori TEKNOLOGI & LUAR_NEGERI
+# (sebenarnya dibuat oleh app.py) tidak pernah muncul di UI. Kini tab
+# dibangun dari KATEGORI_UTAMA sehingga setiap kategori baru otomatis
+# tampil, lengkap dengan hitungan artikelnya.
+label_semua = f"📰 Semua ({len(df_for_tabs)})"
+label_tersimpan = f"⭐ Tersimpan ({len(st.session_state['bookmarked_links'])})"
 
-t1, t2, t3, t4, t5, t6, t7 = st.tabs(tab_labels)
+pasangan_kategori = []
+if 'Kategori Aset' in df_for_tabs.columns:
+    pasangan_kategori = [(k, l) for k, l in KATEGORI_UTAMA if k in set(df_for_tabs['Kategori Aset'].dropna())]
 
-with t1:
-    tampilkan_konten_tab(df_for_tabs, tab_prefix="t1")
-with t2:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'SAHAM'], tab_prefix="t2")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t3:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'POLITIK'], tab_prefix="t3")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t4:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'LOKAL_KALBAR_NGABANG'], tab_prefix="t4")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t5:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'KESEHATAN'], tab_prefix="t5")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t6:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'INSTITUSI'], tab_prefix="t6")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t7:
-    if 'Link' in df_for_tabs.columns:
-        df_saved = df_for_tabs[df_for_tabs['Link'].isin(st.session_state['bookmarked_links'])]
-    else:
-        df_saved = pd.DataFrame()
-    if df_saved.empty:
-        st.info("📭 Belum ada berita yang ditandai (Bookmark).")
-    else:
-        tampilkan_konten_tab(df_saved, tab_prefix="t7")
+label_tabs = [label_semua]
+for kode, label in pasangan_kategori:
+    jml = int((df_for_tabs['Kategori Aset'] == kode).sum())
+    label_tabs.append(f"{label} ({jml})")
+label_tabs.append(label_tersimpan)
 
-t1, t2, t3, t4, t5, t6, t7 = st.tabs(tab_labels)
+if not pasangan_kategori:
+    st.info("ℹ️ Kolom **Kategori Aset** belum tersedia pada data hasil pemindaian.")
 
-with t1:
-    tampilkan_konten_tab(df_for_tabs, tab_prefix="t1")
-with t2:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'SAHAM'], tab_prefix="t2")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t3:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'REKSADANA_ETF'], tab_prefix="t3")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t4:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'EMAS_KOMODITAS'], tab_prefix="t4")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t5:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'MAKRO_REGULASI'], tab_prefix="t5")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t6:
-    if 'Kategori Aset' in df_for_tabs.columns:
-        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == 'UMUM'], tab_prefix="t6")
-    else:
-        st.info("Kolom Kategori Aset tidak tersedia.")
-with t7:
-    if 'Link' in df_for_tabs.columns:
-        df_saved = df_for_tabs[df_for_tabs['Link'].isin(st.session_state['bookmarked_links'])]
-    else:
-        df_saved = pd.DataFrame()
-    if df_saved.empty:
-        st.info("📭 Belum ada berita yang ditandai (Bookmark).")
-    else:
-        tampilkan_konten_tab(df_saved, tab_prefix="t7")
+for tab, (kode, label) in zip(st.tabs(label_tabs), [(None, label_semua)] + pasangan_kategori + [(None, label_tersimpan)]):
+    with tab:
+        # Tab "Semua"
+        if label == label_semua:
+            tampilkan_konten_tab(df_for_tabs, tab_prefix="t_all")
+            continue
+        # Tab "Tersimpan" (bookmark)
+        if label == label_tersimpan:
+            if 'Link' in df_for_tabs.columns:
+                df_saved = df_for_tabs[df_for_tabs['Link'].isin(st.session_state['bookmarked_links'])]
+            else:
+                df_saved = pd.DataFrame()
+            if df_saved.empty:
+                st.info("📭 Belum ada berita yang ditandai (Bookmark).")
+            else:
+                tampilkan_konten_tab(df_saved, tab_prefix="t_saved")
+            continue
+        # Tab kategori
+        tampilkan_konten_tab(df_for_tabs[df_for_tabs['Kategori Aset'] == kode], tab_prefix=f"t_{kode}")
 
 # =====================================================================
 # Download Buttons
