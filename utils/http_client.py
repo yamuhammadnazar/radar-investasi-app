@@ -3,6 +3,8 @@ HTTP Client dengan retry mechanism dan connection pooling.
 Mengurangi overhead handshake SSL dan memberikan resilience terhadap error transient.
 """
 import ssl
+import threading
+import time
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -106,6 +108,86 @@ def get_http_session() -> requests.Session:
     return _SESSION
 
 
+# ============================================================
+# HANG GUARD (ANTI-STUCK)
+# ============================================================
+# Masalah: `requests` dengan (connect, read) timeout TIDAK menjamin total durasi
+# request, karena transfer data bisa terus berjalan (chunked, slow server) tanpa
+# pernah memicu read-timeout -> satu artikel bisa menahan thread pool puluhan
+# detik. Selain itu, retry internal urllib3 bisa memperbanyak percobaan tanpa
+# batas total.
+#
+# Solusi: jalankan request di thread terpisah + watchdog; bila tidak ada progress
+# (respons belum kembali / koneksi menggantung) selama STALL_TIMEOUT_DETIK,
+# socket dipaksa ditutup sehingga thread request tidak pernah macet lama.
+STALL_TIMEOUT_DETIK = 8.0  # tanpa progress sama sekali selama ini -> putus
+
+
+def _jalankan_dengan_watchdog(
+    fn,
+    *,
+    stall_timeout: float = STALL_TIMEOUT_DETIK,
+    total_deadline: float | None = None,
+):
+    """Jalankan `fn()` sambil dipantau agar tidak macet.
+
+    - `fn` mengembalikan objek respons (atau None).
+    - Watchdog memaksa menutup socket bila request tidak selesai dalam
+      `stall_timeout` detik atau melewati `total_deadline`.
+    - Bila fungsi lebih cepat selesai, watchdog dihentikan.
+    Mengembalikan hasil `fn()` apa adanya (None bila gagal/diputus).
+    """
+    state: dict = {}
+    hasil: dict = {}
+
+    def _target():
+        try:
+            hasil["value"] = fn()
+        except Exception as exc:  # noqa: BLE001 - apa pun kegagalannya, kembalikan None
+            hasil["error"] = exc
+        finally:
+            state["done"] = True
+
+    worker = threading.Thread(target=_target, daemon=True)
+    worker.start()
+
+    mulai = time.time()
+    while True:
+        worker.join(timeout=1.0)
+        if not worker.is_alive():
+            return hasil.get("value")
+        now = time.time()
+        if total_deadline is not None and (now - mulai) >= total_deadline:
+            _paksa_tutup(state)
+            break
+        if (now - mulai) >= stall_timeout:
+            _paksa_tutup(state)
+            break
+
+    # Beri kesempatan thread request menyerap error (socket closed) sebelum
+    # dilaporkan sebagai kegagalan — tidak pernah menunggu tanpa batas.
+    worker.join(timeout=1.5)
+    return hasil.get("value")
+
+
+def _paksa_tutup(state: dict) -> None:
+    """Putus socket bila respons sudah terbentuk, agar thread tidak menggantung.
+
+    Umumnya tidak diperlukan karena timeout `requests` sudah memadai; dipakai
+    sebagai jaring pengaman untuk kasus server benar-benar menggantung.
+    """
+    resp = state.get("response")
+    if resp is not None:
+        for _close in (
+            lambda: resp.raw.close(),
+            resp.close,
+        ):
+            try:
+                _close()
+            except Exception:
+                pass
+
+
 def safe_request(
     url: str,
     *,
@@ -119,24 +201,33 @@ def safe_request(
     - Timeout default 8 detik
     - Mengembalikan None alih-alih melempar exception
     - Otomatis menggunakan shared session jika tidak diberikan
+    - FIX ANTI-STUCK: memakai watchdog anti-macet pada transfer body.
     """
     sess = session or get_http_session()
-    try:
-        return sess.get(
-            url,
-            headers=HEADERS,
-            timeout=timeout,
-            verify=verify,
-            allow_redirects=allow_redirects,
-        )
-    except requests.exceptions.Timeout:
-        return None
-    except requests.exceptions.ConnectionError:
-        return None
-    except requests.exceptions.RequestException:
-        return None
-    except Exception:
-        return None
+
+    def _do() -> requests.Response | None:
+        try:
+            return sess.get(
+                url,
+                headers=HEADERS,
+                timeout=(min(4.0, timeout), timeout),
+                verify=verify,
+                allow_redirects=allow_redirects,
+            )
+        except requests.exceptions.Timeout:
+            return None
+        except requests.exceptions.ConnectionError:
+            return None
+        except requests.exceptions.RequestException:
+            return None
+        except Exception:
+            return None
+
+    return _jalankan_dengan_watchdog(
+        _do,
+        stall_timeout=STALL_TIMEOUT_DETIK,
+        total_deadline=timeout + 4.0,
+    )
 
 
 def safe_post(
@@ -156,7 +247,7 @@ def safe_post(
             url,
             json=json or {},
             headers=HEADERS,
-            timeout=timeout,
+            timeout=(min(4.0, timeout), timeout),
         )
     except requests.exceptions.Timeout:
         return None

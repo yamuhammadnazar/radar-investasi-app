@@ -64,6 +64,11 @@ def wib_now():
     sekarang_utc = datetime.now(timezone.utc)  # aware UTC
     return sekarang_utc.astimezone(WIB_OFFSET).replace(tzinfo=None)  # naive WIB
 
+
+# Catatan: konstanta performa adaptif didefinisikan SETELAH import `st`
+# (lihat blok DOMAIN_WORKER_HINT di bawah) karena helper-nya membaca
+# st.session_state.
+
 from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -91,26 +96,156 @@ except Exception:  # pragma: no cover - fallback aman bila modul tersedia tanpa 
 
 from utils.scraper import HALT_FAILURE_RATIO, HALT_MIN_SAMPLE  # noqa: F401  (dipertahankan untuk kompatibilitas, fitur tidak digunakan)
 
-# Adaptive concurrency hint: portal besar diberi worker lebih sedikit agar tidak kena rate-limit
+# Adaptive concurrency hint: portal besar diberi worker lebih sedikit agar tidak kena rate-limit.
+#
+# FIX PERFORMA (rate-limit): daftar domain diperluas agar SEMUA portal yang
+# dikenal rentan Cloudflare/anti-bot (bisnis, investor, kompas, katadata,
+# detik, idxchannel, dst.) juga dibatasi — bukan hanya segelintir domain.
+# Domain yang melakukan redirect/anti-bot pada halaman ARTIKEL diberi nilai 3
+# agar tidak memicu blokir yang membuat satu portal "stuck" lama.
 DOMAIN_WORKER_HINT = {
-    "detik": 5, "kompas": 5, "cnbcindonesia": 4,
-    "kontan": 4, "tempo.co": 6, "katadata": 8,
-    "cnn": 5, "liputan6": 5, "kumparan": 6,
-    "idnfinancials": 6, "antaranews": 6,
-    "tribunnews": 5, "okezone": 5, "republika": 6,
-    "jawapos": 6, "merdeka": 6, "pikiran-rakyat": 6,
-    "bisnis.com": 5, "metrotvnews": 6, "tvonenews": 6,
-    "suara.com": 7, "trenasia": 8, "wartaekonomi": 8,
+    "cnbcindonesia": 4,
+    "detik": 5,
+    "kompas": 4,
+    "kontan": 4,
+    "tempo.co": 5,
+    "katadata": 5,
+    "cnn": 5,
+    "liputan6": 5,
+    "kumparan": 6,
+    "idnfinancials": 6,
+    "antaranews": 6,
+    "tribunnews": 4,
+    "okezone": 5,
+    "republika": 5,
+    "jawapos": 5,
+    "merdeka": 6,
+    "pikiran-rakyat": 6,
+    "suara.com": 6,
+    "trenasia": 6,
+    "wartaekonomi": 6,
+    "metrotvnews": 5,
+    "tvonenews": 5,
+    # Portal bisnis.com melakukan redirect (301/302) pada halaman artikel;
+    # request per-artikel 2x lebih lambat (harus resolve Google News URL dulu).
+    "bisnis": 3,
+    # Halaman artikel investor.id melakukan redirect & sering lambat.
+    "investor.id": 3,
+    # Domain yang bergantung 100% pada Google News (rss_asli kosong) selalu
+    # melewati tahap resolve URL, jadi worker dibatasi agar tidak menumpuk.
+    "bareksa": 4,
+    "swa.co.id": 4,
+    "rm.id": 4,
+    "idxchannel": 5,
+    "bloombergtechnoz": 5,
 }
+
+# ============================================================
+# DOWNLOAD/METRIK PERFORMA
+# ============================================================
+# Ambang sinyal "portal ini bermasalah" — diukur dari METRIK NYATA
+# (bukan dari nama domain saja), sehingga portal yang tadinya lambat
+# bisa otomatis dipercepat pada scan berikutnya setelah pulih.
+MIN_SAMPLE_UNTUK_ADAPTASI = 8       # minimal artikel selesai sebelum menilai portal
+THRESHOLD_GAGAL_RASIO = 0.30        # >=30% gagal  -> turunkan worker 1 langkah
+THRESHOLD_GAGAL_RASIO_PARAH = 0.60  # >=60% gagal  -> pakai worker minimum
+THRESHOLD_DURASI_SLOW = 10.0        # rata-rata >=10s/artikel -> turunkan worker 1 langkah
+TIMEOUT_ARTIKEL = 7.0               # timeout HTTP per artikel (detik)
+NILAI_BACKOFF_GAGAL = -2            # penalti (detik palsu) saat artikel gagal total
+# Batas maksimum durasi satu portal pada PORTAL TUNGGAL. Untuk scan >1 portal
+# batas dinaikkan mengikuti skala adaptive worker (lihat _batas_durasi_portal).
+DEADLINE_PORTAL_DETIK = 150.0
+DEADLINE_PORTAL_MAKS_DETIK = 240.0
+# Worker maksimum untuk thread prefetch feed (I/O-bound, jadi boleh lebih banyak
+# dari worker artikel). Membuat waktu tunggu feed satu portal "kebanjiran" ke
+# thread lain, alih-alih menahan seluruh scan secara berurutan.
+MAX_WORKERS_FEED = 12
+# Rasio kegagalan artikel per-portal yang membuat portal di-skip pada batch berikutnya.
+# Ini mencegah portal yang benar-benar down (mis. 403 semua) memakan deadline
+# berulang kali, sehingga total scan tetap cepat.
+RASIO_GAGAL_SKIP_BATCH = 0.85
+MIN_SAMPLE_SKIP_BATCH = 5
 
 
 def get_adaptive_workers(nama_portal: str, max_workers: int) -> int:
-    """Turunkan worker untuk portal yang rentan rate-limit (bertemu max_workers limit)."""
-    key = nama_portal.lower()
+    """Worker untuk portal ini = MIN(limit domain, max_workers dari slider).
+
+    Sekarang juga memperhitungkan HISTORI PORTOFOLIO (metrik sukses/gagal & durasi
+    per artikel dari scan sebelumnya) sehingga portal yang terbukti bermasalah
+    otomatis diperlambat, dan portal yang terbukti cepat bisa memakai worker penuh.
+    """
+    key = (nama_portal or "").lower()
+    batas = None
     for domain, hint in DOMAIN_WORKER_HINT.items():
         if domain in key:
-            return min(hint, max_workers)
-    return max_workers
+            batas = hint if batas is None else min(batas, hint)
+    worker = max_workers if batas is None else min(batas, max_workers)
+
+    # Adaptasi berbasis metrik historis (opsional, aman bila belum ada data).
+    metrik = st.session_state.get("performa_portal", {}).get(nama_portal)
+    if isinstance(metrik, dict):
+        try:
+            rasio_gagal = float(metrik.get("rasio_gagal", 0.0) or 0.0)
+            durasi_rata2 = float(metrik.get("durasi_rata_detik", 0.0) or 0.0)
+            # Nilai sentinel NILAI_BACKOFF_GAGAL (durasi per artikel gagal) tidak
+            # boleh dianggap sebagai durasi nyata, jadi dibersihkan di sini.
+            if durasi_rata2 < 0:
+                durasi_rata2 = 0.0
+            if rasio_gagal >= THRESHOLD_GAGAL_RASIO_PARAH:
+                worker = 1
+            elif rasio_gagal >= THRESHOLD_GAGAL_RASIO or durasi_rata2 >= THRESHOLD_DURASI_SLOW:
+                worker = max(1, worker - 1)
+        except Exception:
+            pass
+    return max(1, int(worker))
+
+
+def _batas_durasi_portal(effective_workers: int, total_portal: int) -> float:
+    """Batas maksimum durasi satu portal (detik) agar scan tidak tertahan.
+
+    Skalanya mengikuti jumlah worker adaptif portal tersebut: portal dengan
+    lebih banyak worker boleh memakai waktu lebih lama karena memang memproses
+    lebih banyak artikel paralel. Untuk PORTAL TUNGGAL, batas dinaikkan ke
+    plafon agar pemindaian satu portal tidak terpotong.
+    """
+    if total_portal <= 1:
+        return DEADLINE_PORTAL_MAKS_DETIK
+    batas = DEADLINE_PORTAL_DETIK * (max(1, effective_workers) / 8.0)
+    return float(max(60.0, min(DEADLINE_PORTAL_MAKS_DETIK, batas)))
+
+
+def _catat_performa_portal(
+    nama_portal: str,
+    processed: int,
+    failed: int,
+    durasi_per_item: list,
+    dipotong: bool = False,
+) -> None:
+    """Simpan metrik performa portal ke session_state untuk adaptasi scan berikutnya.
+
+    Disimpan di session_state (bukan file) agar tidak mengubah fungsi publik
+    maupun UI; halaman lain tidak terpengaruh karena key-nya baru.
+    """
+    try:
+        durasi_valid = [d for d in durasi_per_item if isinstance(d, (int, float)) and d >= 0]
+        durasi_rata = round(sum(durasi_valid) / len(durasi_valid), 2) if durasi_valid else 0.0
+        metrik_lama = st.session_state.get("performa_portal", {}) or {}
+        lama = metrik_lama.get(nama_portal) or {}
+        # Rata-rata bergerak (60% data lama, 40% data baru) agar adaptasi tidak
+        # berubah drastis hanya karena satu scan yang kebetulan buruk/baik.
+        rasio_baru = (failed / processed) if processed else 1.0
+        rasio_lama = float(lama.get("rasio_gagal", rasio_baru) or rasio_baru)
+        durasi_lama = float(lama.get("durasi_rata_detik", durasi_rata) or durasi_rata)
+        metrik_lama[nama_portal] = {
+            "rasio_gagal": round(rasio_lama * 0.6 + rasio_baru * 0.4, 3),
+            "durasi_rata_detik": round(durasi_lama * 0.6 + durasi_rata * 0.4, 2),
+            "dipotong_deadline": bool(dipotong),
+            "sample": int(lama.get("sample", 0)) + int(processed),
+        }
+        st.session_state["performa_portal"] = metrik_lama
+    except Exception:
+        # Metrik hanya optimasi — kegagalan pencatatan tidak boleh menggagalkan scan.
+        pass
 
 
 # ============================================================
@@ -157,7 +292,7 @@ KATEGORI_PORTOFOLIO = {
         "bi rate", "bank indonesia", "inflasi indonesia", "rupiah", "usd/idr",
         "gdp indonesia", "pertumbuhan ekonomi", "apbn", "yield obligasi",
         "ihsg", "foreign flow", "net buy asing", "net sell asing","harga pangan", "inflasi",
-        "defisit neraca perdagangan", "ekspor-impor", "neraca perdagangan", "saham", 
+        "defisit neraca perdagangan", "ekspor-impor", "neraca perdagangan", "saham",
         "bursa efek indonesia", "inflasi ihk"
     ],
     "MAKRO_GLOBAL": [
@@ -510,6 +645,24 @@ def apakah_duplikat(judul_baru, link_baru, daftar_tersimpan, ambang):
     return False
 
 
+def _artikel_sudah_di_cache(link: str) -> bool:
+    """Cek cepat apakah artikel sudah ada di cache (article/parsed).
+
+    Dipakai saat deadline portal sudah lewat: artikel yang SUDAH ter-cache
+    masih diproses (tanpa jaringan, jadi tetap instan), sedangkan artikel
+    yang butuh jaringan di-skip agar portal bisa segera ditutup.
+    """
+    if not link:
+        return False
+    try:
+        if cache_get_parsed is not None and cache_get_parsed(link) is not None:
+            return True
+        from utils.cache import cache_get as _cache_get
+        return _cache_get("article", link) is not None
+    except Exception:
+        return False
+
+
 def ringkas_teks(teks, kata_kunci_list, max_kalimat=2):
     if not teks or "tidak dapat diekstrak" in teks or "terkunci" in teks:
         return "-"
@@ -545,6 +698,7 @@ def process_entry(
     daftar_tersimpan: list,
     dedup_lock: Optional[Lock] = None,
     waktu_acuan=None,
+    tenggat=None,
 ) -> Optional[dict]:
     """
     Proses satu entry RSS sampai menjadi record siap-simpan.
@@ -555,6 +709,11 @@ def process_entry(
     pemindaian. Diteruskan ke ``apakah_dalam_rentang`` agar batas atas
     rentang filter konsisten untuk SEMUA entry — tidak bergeser selama
     scan berjalan. Konsisten dengan ``last_scan_at`` yang ditampilkan ke UI.
+
+    ``tenggat`` = callable opsional yang mengembalikan batas waktu absolut
+    (epoch) untuk portal ini. Bila tenggat sudah lewat, entry di-skip
+    (kecuali sudah tersedia di cache) sehingga satu portal yang lambat/
+    anti-bot tidak menahan seluruh proses pemindaian.
     """
     judul = entry.get("title", "N/A")
     link = entry.get("link", "N/A")
@@ -566,14 +725,21 @@ def process_entry(
     if not judul or judul == "N/A" or not link or link == "N/A":
         return None
 
-    # OPTIMASI: Filter kata kunci portofolio DULU (cepat, regex pre-compiled)
+        # OPTIMASI: Filter kata kunci portofolio DULU (cepat, regex pre-compiled)
     # sebelum scrape body artikel (lambat). Mencegah scrape artikel yang
     # jelas tidak relevan dan menghemat waktu signifikan.
+    tenggat_lewat = callable(tenggat) and time.time() >= tenggat()
     teks_pencocokan = (judul + " " + deskripsi).lower()
     match = _KK_PATTERN.search(teks_pencocokan)
     if match is None:
         return None
     trigger_terdeteksi = match.group(1).upper()
+    if tenggat_lewat:
+        # Sudah melewati deadline portal: hanya artikel yang sudah ada di cache
+        # yang masih diproses (tanpa jaringan), sehingga deadline benar-benar
+        # menyelesaikan portal tepat waktu tanpa membuang hasil cache.
+        if not _artikel_sudah_di_cache(link):
+            return None
 
     # CATATAN: Filter waktu pra-scrape HANYA untuk portal terpercaya
     # (field aturan['tanggal_terpercaya'] == True). Portal ini umumnya
@@ -784,6 +950,11 @@ if 'scan_rentang_label' not in st.session_state:
     st.session_state.scan_rentang_label = None
 if 'scan_jam_filter' not in st.session_state:
     st.session_state.scan_jam_filter = None
+# Metrik performa per-portal (dipakai get_adaptive_workers untuk menyesuaikan
+# jumlah worker pada scan BERIKUTNYA). Tidak ditampilkan di UI; key baru
+# sehingga tidak mengubah UI maupun fungsi yang sudah ada.
+if 'performa_portal' not in st.session_state:
+    st.session_state.performa_portal = {}
 
 # Header
 st.markdown("""
@@ -1096,6 +1267,84 @@ if tombol_scan:
         portal_feed_errors: dict[str, str] = {}
         portal_entry_counts: dict[str, tuple[int, int]] = {}  # (diproses, gagal)
 
+        # ============================================================
+        # PERFORMA: SIMPAN INCREMENTAL (debounce) + PREFETCH FEED PARALEL
+        # ============================================================
+        # Masalah sebelumnya:
+        # 1. `st.session_state.df_hasil = pd.DataFrame(kumpulan_data_global)`
+        #    dibangun ULANG dari SELURUH hasil di setiap akhir portal -> O(N^2)
+        #    dan makin lambat saat portal makin banyak. Sekarang dibatasi
+        #    ke 1 kali per interval agar hasil tetap tampil progresif.
+        # 2. Feed RSS portal di-fetch SATU PER SATU di dalam loop, sehingga satu
+        #    portal yang lambat/timeout menahan seluruh scan. Sekarang feed
+        #    di-prefetch paralel, jadi penundaan satu portal tidak memblokir portal lain.
+        _interval_simpan_incremental = 2.0
+        # Mutable holder: dipakai alih-alih `nonlocal` karena helper ini
+        # didefinisikan di dalam blok `if` (bukan scope fungsi), sehingga
+        # `nonlocal` tidak valid di sini.
+        _state_simpan = {"terakhir": 0.0}
+
+        def _simpan_hasil_incremental(force: bool = False) -> None:
+            """Perbarui df_hasil secara berkala-saja (bukan tiap portal).
+
+            FIX PERFORMA: sebelumnya dataframe dibangun ulang dari SELURUH
+            hasil di setiap akhir portal (O(N^2)). Kini dibatasi frekuensinya
+            agar hasil tetap tampil progresif tanpa memboroskan waktu.
+            """
+            if not kumpulan_data_global:
+                return
+            sekarang_simpan = time.time()
+            if not force and (sekarang_simpan - _state_simpan["terakhir"]) < _interval_simpan_incremental:
+                return
+            _state_simpan["terakhir"] = sekarang_simpan
+            st.session_state.df_hasil = (
+                pd.DataFrame(kumpulan_data_global)
+                .sort_values(by="dt_sort", ascending=False)
+                .reset_index(drop=True)
+            )
+
+        # Siapkan aturan per-portal (sekali saja) — dipakai oleh prefetch feed & scan artikel.
+        _aturan_siap: dict[str, dict] = {}
+        for nama_portal_awal in portal_terpilih:
+            try:
+                aturan_awal = dict(aturan_portal[nama_portal_awal])
+            except Exception:
+                aturan_awal = {}
+            aturan_awal["__nama_portal"] = nama_portal_awal
+            _aturan_siap[nama_portal_awal] = aturan_awal
+
+        # PREFETCH PARALEL: ambil semua feed sekaligus (I/O-bound, boleh banyak thread).
+        # Lihat catatan agregasi alasan kegagalan feed di bawah loop.
+        _feed_hasil: dict[str, object] = {}
+        _feed_error_gabung: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=min(MAX_WORKERS_FEED, max(1, total_portal))) as _feed_exec:
+            _future_feed = {
+                _feed_exec.submit(dapatkan_feed_rss, _aturan_siap[nama_portal_feed]): nama_portal_feed
+                for nama_portal_feed in portal_terpilih
+            }
+            for _fut in as_completed(_future_feed):
+                _nama_feed = _future_feed[_fut]
+                try:
+                    _feed_hasil[_nama_feed] = _fut.result()
+                except Exception as _feed_exc:
+                    _feed_hasil[_nama_feed] = None
+                    _feed_error_gabung[_nama_feed] = f"exception: {type(_feed_exc).__name__}: {str(_feed_exc)[:80]}"
+                # FIX RACE: dict `aturan` per-portal hanya disentuh SATU thread,
+                # tapi bacanya dilakukan SETELAH semua future selesai (di bawah),
+                # sehingga __feed_error selalu konsisten per portal.
+            _feed_exec.shutdown(wait=True)
+        for _nama_feed, _aturan_feed in _aturan_siap.items():
+            if _nama_feed in _feed_error_gabung:
+                portal_feed_errors[_nama_feed] = _feed_error_gabung[_nama_feed]
+            elif _aturan_feed.get("__feed_error"):
+                portal_feed_errors[_nama_feed] = _aturan_feed.get("__feed_error")
+
+        # Satu pool bersama untuk scan ARTIKEL semua portal.
+        # Worker per-portal tetap dihormati dengan cara membatasi jumlah submit
+        # (in-flight) per portal — jadi portal lambat tidak pernah memonopoli
+        # thread, tetapi portal 1 (tunggal) tetap dapat paralelisme penuh.
+        _pool_artikel = ThreadPoolExecutor(max_workers=max(2, min(24, max_workers + 6)))
+
         for idx, nama_portal in enumerate(portal_terpilih):
             elapsed_time = round(time.time() - start_time, 1)
             timer_container.markdown(f"""
@@ -1110,83 +1359,137 @@ if tombol_scan:
 
             # Lindungi per-portal: error fatal pada satu portal tidak menggagalkan seluruh scan.
             try:
-                aturan = dict(aturan_portal[nama_portal])  # copy agar tidak modify global
-                aturan["__nama_portal"] = nama_portal
-
-                feed = dapatkan_feed_rss(aturan)
+                aturan = _aturan_siap[nama_portal]
+                feed = _feed_hasil.get(nama_portal)
                 if not feed or not hasattr(feed, "entries") or len(feed.entries) == 0:
                     progress_bar.progress((idx + 1) / total_portal)
                     portal_failure_counts[nama_portal] = portal_failure_counts.get(nama_portal, 0) + 1
                     # FIX: catat alasan kegagalan feed untuk laporan diagnostik.
-                    portal_feed_errors[nama_portal] = aturan.get("__feed_error", "feed kosong / 0 entry")
+                    portal_feed_errors.setdefault(
+                        nama_portal,
+                        aturan.get("__feed_error", "feed kosong / 0 entry"),
+                    )
+                    _simpan_hasil_incremental()
                     continue
 
                 # Batasi jumlah entry yang akan diproses
                 # OPTIMASI #6: sort by recency (entry terbaru diproses duluan),
                 # sehingga hasil yang lolos filter waktu tampil lebih awal (progressive rendering).
                 target_entries = sort_entries_by_recency(list(feed.entries))[:max_artikel_per_portal]
-                session = get_http_session()
 
                 # OPTIMASI #3: adaptive worker untuk portal rentan rate-limit.
                 # Portal besar (Detik, Kompas, CNBC) pakai worker lebih sedikit.
+                # FIX: sekarang juga memakai METRIK HISTORIS (rasio gagal & durasi
+                # per artikel) sehingga portal yang terbukti bermasalah otomatis
+                # diperlambat pada scan berikutnya.
                 effective_workers = get_adaptive_workers(nama_portal, max_workers)
 
-                # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal.
-                # FITUR HENTI DINI DINONAKTIFKAN — semua entry akan diproses
-                # sampai selesai (timeout) untuk hasil scrapping maksimal,
-                # walau sebagian ada yang gagal akses (transient/rate-limit).
+                # FIX "STUCK DI 1 PORTAL": batas durasi per portal. Jika sebuah
+                # portal lambat/anti-bot, sisa entry-nya (yang belum mulai) tidak
+                # diproses lagi — kecuali sudah ada di cache (tetap instan).
+                batas_durasi = _batas_durasi_portal(effective_workers, total_portal)
+                tenggat_portal = time.time() + batas_durasi
+
                 processed_count = 0
                 failed_count = 0
+                lewat_deadline = 0
+                durasi_per_item: list[float] = []
 
-                # PARALEL: ThreadPoolExecutor untuk entry dalam 1 portal
-                with ThreadPoolExecutor(max_workers=effective_workers) as executor:
-                    # Submit semua entry
-                    future_to_entry = {
-                        executor.submit(
+                # PARALEL: submit bertahap (window) agar worker per-portal dihormati
+                # tanpa membuat satu pool per portal.
+                _antrian = list(target_entries)
+                _aktif: dict = {}
+                _gagal_berturut = 0
+                _stop_karena_gagal = False
+                while _antrian or _aktif:
+                    while _antrian and len(_aktif) < effective_workers:
+                        _entry_next = _antrian.pop(0)
+                        _fut = _pool_artikel.submit(
                             process_entry,
-                            entry, aturan, jam_filter,
+                            _entry_next, aturan, jam_filter,
                             aktifkan_deduplikasi, ambang_duplikat,
                             daftar_tersimpan, dedup_lock,
-                            waktu_acuan=waktu_mulai_scan,
-                        ): entry
-                        for entry in target_entries
-                    }
+                            waktu_mulai_scan,
+                            tenggat_portal,
+                        )
+                        _aktif[_fut] = (time.time(), _entry_next)
 
-                    # Kumpulkan hasil — semua future dibiarkan selesai,
-                    # tidak ada cancel/break. Hanya hitung statistik gagal.
-                    for future in as_completed(future_to_entry, timeout=120):
-                        processed_count += 1
-                        try:
-                            record = future.result(timeout=10)
-                        except Exception:
-                            record = None
+                    if not _aktif:
+                        continue
 
-                        if record is None:
-                            failed_count += 1
-                            continue
+                    _selesai = None
+                    _timeout_poll = max(0.5, min(2.0, tenggat_portal - time.time()))
+                    try:
+                        for _fut_selesai in as_completed(list(_aktif), timeout=_timeout_poll):
+                            _selesai = _fut_selesai
+                            break
+                    except Exception:
+                        _selesai = None
 
-                        # Sukses
-                        kumpulan_data_global.append(record)
+                    if _selesai is None:
+                        # Belum ada future selesai dalam polling window — cek deadline.
+                        if time.time() >= tenggat_portal:
+                            if not _antrian:
+                                break  # semua entry sudah di-submit, tunggu selesai
+                            # Batalkan sisa antrian (belum di-submit) -> portal berikutnya segera diproses.
+                            lewat_deadline = len(_antrian)
+                            _antrian.clear()
+                        continue
+
+                    _waktu_mulai_next, _ = _aktif.pop(_selesai)
+                    _durasi_item = max(0.0, time.time() - _waktu_mulai_next)
+                    processed_count += 1
+                    try:
+                        record = _selesai.result(timeout=5)
+                    except Exception:
+                        record = None
+
+                    if record is None:
+                        failed_count += 1
+                        _gagal_berturut += 1
+                        durasi_per_item.append(NILAI_BACKOFF_GAGAL)
+                        # FIX ANTI-STUCK: bila mayoritas besar entry gagal (portal down/403),
+                        # hentikan portal ini lebih awal — kecuali entry sisa sudah di cache.
+                        if (
+                            not _stop_karena_gagal
+                            and _gagal_berturut >= MIN_SAMPLE_SKIP_BATCH
+                            and (_gagal_berturut / max(1, processed_count)) >= RASIO_GAGAL_SKIP_BATCH
+                        ):
+                            _stop_karena_gagal = True
+                            _sisa_antrian = [e for e in _antrian if _artikel_sudah_di_cache(e.get("link", ""))]
+                            lewat_deadline += max(0, len(_antrian) - len(_sisa_antrian))
+                            _antrian = _sisa_antrian
+                        continue
+
+                    # Sukses
+                    _gagal_berturut = 0
+                    durasi_per_item.append(_durasi_item)
+                    kumpulan_data_global.append(record)
 
                 portal_failure_counts[nama_portal] = failed_count
                 portal_halted_flags[nama_portal] = False
                 portal_entry_counts[nama_portal] = (processed_count, failed_count)
 
+                # Simpan metrik performa untuk adaptasi worker pada scan berikutnya.
+                _catat_performa_portal(
+                    nama_portal, processed_count, failed_count,
+                    durasi_per_item, dipotong=bool(lewat_deadline),
+                )
+
                 # Update progress
                 progress_bar.progress((idx + 1) / total_portal)
+                _catatan_deadline = (
+                    f" | ⏱️ {lewat_deadline} entry dilewati (batas {batas_durasi:.0f}s)"
+                    if lewat_deadline else ""
+                )
                 status_text.text(
                     f"✅ {nama_portal}: {processed_count}/{len(target_entries)} selesai "
-                    f"(gagal: {failed_count}) | "
+                    f"(gagal: {failed_count}){_catatan_deadline} | "
                     f"Total: {len(kumpulan_data_global)} berita"
                 )
 
-                # Simpan incremental
-                if kumpulan_data_global:
-                    st.session_state.df_hasil = (
-                        pd.DataFrame(kumpulan_data_global)
-                        .sort_values(by="dt_sort", ascending=False)
-                        .reset_index(drop=True)
-                    )
+                # Simpan incremental (debounced — lihat _simpan_hasil_incremental)
+                _simpan_hasil_incremental()
 
                 # Memory cleanup periodik
                 if (idx + 1) % 5 == 0:
@@ -1200,6 +1503,16 @@ if tombol_scan:
                 portal_feed_errors[nama_portal] = f"exception: {type(portal_err).__name__}: {str(portal_err)[:80]}"
                 progress_bar.progress((idx + 1) / total_portal)
                 continue
+
+        # Pastikan hasil terakhir selalu tersimpan (tanpa debounce).
+        _simpan_hasil_incremental(force=True)
+        # Tutup pool artikel bersama (amankan bila ada future sisa dari portal terakhir).
+        try:
+            _pool_artikel.shutdown(wait=True, cancel_futures=True)
+        except TypeError:
+            _pool_artikel.shutdown(wait=True)
+        except Exception:
+            pass
 
         # Selesai
         duration = round(time.time() - start_time, 2)

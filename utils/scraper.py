@@ -25,10 +25,24 @@ from .cache import (
 from .portals import aturan_portal
 
 # Batas paralelisme per scan (terlalu tinggi = bisa kena rate-limit / IP block)
-DEFAULT_MAX_WORKERS = 8  # Dinaikkan 5 -> 8 untuk kecepatan lebih tinggi
+DEFAULT_MAX_WORKERS = 10  # dinaikkan 8 -> 10 untuk kecepatan lebih tinggi
 MAX_ARTIKEL_PER_PORTAL = 40  # Dinaikkan 15 -> 40 agar lebih banyak artikel diproses per portal
-SCRAPE_TIMEOUT = 7  # detik per artikel
+# FIX PERFORMA: timeout per artikel diperketat 7 -> 6 detik. Portal Indonesia
+# yang normal merespons <3 detik, jadi timeout lebih pendek hanya memotong
+# portal yang benar-benar menggantung — bukan memperlambat hasil normal.
+SCRAPE_TIMEOUT = 6  # detik per artikel
+# Timeout khusus resolve URL Google News (hanya butuh redirect, bukan HTML besar).
+SCRAPE_TIMEOUT_RESOLVE = 5  # detik
 MAX_ARTIKEL_LEN = 8000  # batasi panjang teks untuk mencegah memory blow-up
+
+# --- Retry sisi aplikasi ---
+# FIX PERFORMA: 3 -> 2 percobaan. Retry urllib3 (di http_client) sudah menangani
+# 5xx/429 otomatis, jadi retry aplikasi berlapis hanya membuang waktu saat
+# artikel memang tidak bisa diakses (403/anti-bot).
+MAX_SCRAPE_ATTEMPTS = 2
+# Backoff antar attempt (detik) dipercepat: percobaan kedua mulai lebih cepat
+# sehingga seluruh scan selesai lebih singkat tanpa menambah beban server.
+BACKOFF_MULT = 0.15
 
 
 def _parse_feed_safely(content: bytes) -> object:
@@ -165,7 +179,14 @@ def dapatkan_url_asli(url_target: str) -> str:
     cached = cache_get("url", url_target)
     if cached is not None:
         return cached
-    response = safe_request(url_target, timeout=10, allow_redirects=True)
+    # FIX PERFORMA: timeout resolve dipersingkat (hanya butuh redirect header,
+    # bukan body artikel) dan diberi plafon durasi pada ALLOW_REDIRECTS agar
+    # rantai redirect Google News yang panjang tidak menahan thread lama.
+    response = safe_request(
+        url_target,
+        timeout=SCRAPE_TIMEOUT_RESOLVE,
+        allow_redirects=True,
+    )
     if response is not None:
         cache_set("url", url_target, response.url, ttl=86400)
         return response.url
@@ -219,9 +240,8 @@ def _ekstrak_isi_html(html_text: str, tag: str, class_name: str) -> tuple[str, s
 
 
 # Batas percobaan ulang per artikel (retry di sisi aplikasi, di atas retry urllib3).
-# Jika setelah MAX_SCRAPE_ATTEMPTS percobaan tetap gagal, kembalikan None
-# agar caller bisa menghentikan proses jika kegagalan berturut-turut.
-MAX_SCRAPE_ATTEMPTS = 3
+# Nilai MAX_SCRAPE_ATTEMPTS/BACKOFF_MULT didefinisikan di bagian atas modul
+# (bersama konstanta timeout) agar mudah disetel dalam satu tempat.
 # Threshold RASIO kegagalan (gagal/total) pada loop per-portal sebelum proses
 # dihentikan dini. 2x gagal saja tidak cukup karena bisa jadi transient/rate-limit;
 # kita hentikan hanya jika mayoritas entry benar-benar gagal akses (bukan di-skip).
@@ -263,9 +283,6 @@ def scrape_artikel(
         return parsed_cached
 
     last_err: str | None = None
-    # Backoff antar attempt dipercepat (0.3 -> 0.15) karena paralelisme tinggi
-    # dan kita ingin seluruh scan selesai lebih cepat.
-    BACKOFF_MULT = 0.15
     for attempt in range(1, MAX_SCRAPE_ATTEMPTS + 1):
         start = time.time()
         try:

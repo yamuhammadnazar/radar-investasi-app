@@ -21,6 +21,10 @@ DEFAULT_FEED_TTL = 3600
 DEFAULT_ARTICLE_TTL = 21600
 # TTL khusus parsed article: skip langkah BeautifulSoup+regex pada hit kedua
 DEFAULT_PARSED_TTL = 21600
+# FIX ANTI-STUCK: lama maksimum SQLite menunggu lock ditulis oleh thread lain.
+# Pada scraping paralel, default 5 detik terlalu pendek sehingga cache_get/set
+# bisa gagal senyap -> artikel di-scrape ulang -> scan terasa lambat.
+SQLITE_BUSY_TIMEOUT = 20.0
 
 
 def cache_get_parsed(link: str):
@@ -36,8 +40,11 @@ def cache_set_parsed(link: str, payload, ttl: int = DEFAULT_PARSED_TTL) -> bool:
 def init_cache_db() -> None:
     """Inisialisasi tabel cache jika belum ada."""
     with CACHE_LOCK:
-        conn = sqlite3.connect(DB_PATH)
+        # FIX ANTI-STUCK: beri busy timeout agar operasi DDL tidak langsung gagal
+        # saat ada writer lain (scraping paralel) yang sedang memegang lock.
+        conn = sqlite3.connect(DB_PATH, timeout=SQLITE_BUSY_TIMEOUT)
         try:
+            conn.execute(f"PRAGMA busy_timeout={int(SQLITE_BUSY_TIMEOUT * 1000)};")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS cache (
                     key TEXT PRIMARY KEY,
@@ -67,11 +74,15 @@ def _get_conn() -> sqlite3.Connection:
     if conn is None:
         conn = sqlite3.connect(
             DB_PATH,
-            timeout=10.0,
+            timeout=SQLITE_BUSY_TIMEOUT,
             check_same_thread=False,  # setiap thread punya instance sendiri
         )
         conn.execute("PRAGMA journal_mode=WAL")  # tulis-bersamaan (parallel) lebih cepat
         conn.execute("PRAGMA synchronous=NORMAL")  # keseimbangan performa & durability
+        # FIX ANTI-STUCK: SQLite default hanya menunggu lock 5 detik; pada
+        # scraping paralel (banyak writer) itu membuat cache_set/cache_get
+        # gagal senyap dan memperlambat scan. Naikkan & konsistenkan.
+        conn.execute(f"PRAGMA busy_timeout={int(SQLITE_BUSY_TIMEOUT * 1000)};")
         _thread_local.conn = conn
     return conn
 
